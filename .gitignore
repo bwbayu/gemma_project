@@ -4,7 +4,7 @@ env/
 .claude
 *__pycache__
 /output
-/assets
+# /assets
 /agents
 /learning
 /mcp_servers
