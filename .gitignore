@@ -1,1 +1,7 @@
-env/ 
+/.venv
+/.adk
+/form_agent/__pycache__
+/form_agent/tools/__pycache__
+/form_agent/.adk
+/form_agent/tools/credentials.json
+token.json

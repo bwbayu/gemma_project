@@ -1,1 +1,2 @@
-nul 
+google-adk
+google-adk[extensions]
