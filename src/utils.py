@@ -1,6 +1,9 @@
 from google.genai import types
 from google.adk.events import Event
 import os, json, re
+from pathlib import Path
+
+_PROJECT_ROOT = str(Path(__file__).parent.parent.resolve())
 
 _IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 _MIME_MAP = {

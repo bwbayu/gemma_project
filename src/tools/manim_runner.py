@@ -33,8 +33,7 @@ import sys
 from pathlib import Path
 
 from google.adk.tools import ToolContext
-
-_PROJECT_ROOT = str(Path(__file__).parent.parent.parent.resolve())
+from src.utils import _PROJECT_ROOT
 
 
 def strip_markdown_fences(code: str) -> str:

@@ -130,6 +130,7 @@ dependencies = [
     "requests==2.33.1",
     "rich==15.0.0",
     "rpds-py==0.30.0",
+    "ruff>=0.15.11",
     "scipy==1.15.3",
     "screeninfo==0.8.1",
     "six==1.17.0",
@@ -157,4 +158,5 @@ dependencies = [
     "websockets==15.0.1",
     "yarl==1.23.0",
     "zipp==3.23.1",
+    'pywin32==311; sys_platform == "win32"',
 ]
