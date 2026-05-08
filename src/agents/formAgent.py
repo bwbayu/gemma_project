@@ -61,30 +61,22 @@ Call `upload_image_to_drive` with:
 
 ### Step 4 — Create the form
 Call `create_form` with:
-- title: "Physics Question" (or a short title inferred from `{original_question_text}`)
+- title: "Physics Quiz #1"
 - description: A brief context sentence such as:
-  "Watch the animation above and answer the question below.
-   Original question: <first 120 chars of original_question_text>"
+  "Watch the animation and answer the question correctly with your explanation."
 
 ### Step 5 — Add the animation as an image question
 Call `add_image_question` with:
 - form_id: from Step 4
 - question_title: the specific question the student must answer, extracted from
-  `{original_question_text}`. Concise. Never include the numeric answer.
+  `{original_question_text}` and text "Show your working / solution steps". Concise. Never include the numeric answer. 
 - drive_file_id: from Step 3
 - alt_text: "Physics animation"
+- paragraph: True
 - required: True
 - index: 0
 
-### Step 6 — Add a working-steps text question
-Call `add_text_question` with:
-- form_id: from Step 4
-- question_title: "Show your working / solution steps"
-- paragraph: True
-- required: False
-- index: 1
-
-### Step 7 — Output the result
+### Step 6 — Output the result
 Return ONLY this JSON object (no markdown fences, no extra text):
 {
   "form_url": "<responderUri>",
