@@ -2,6 +2,7 @@
 
 from google.adk.agents import LlmAgent
 from google.adk.models import Gemini
+from src.agents.rate_limit import build_generate_content_config
 
 from src.tools.python_repl import python_repl
 
@@ -186,6 +187,7 @@ CRITICAL RULES:
 validator_agent = LlmAgent(
     name="Validator",
     model=Gemini(model="gemma-4-31b-it"),
+    generate_content_config=build_generate_content_config(),
     instruction=VALIDATOR_INSTRUCTION,
     tools=[python_repl],
     output_key="validation_result",

@@ -1,9 +1,9 @@
 # src/agents/physicsManimAgent.py
 
 from google.adk.agents import LlmAgent
-from google.genai import types
 from google.adk.models import Gemini
 
+from src.agents.rate_limit import build_generate_content_config
 from src.tools.python_repl import python_repl
 from src.tools.manim_docs import (
     get_class_info,
@@ -138,9 +138,7 @@ self.wait(3)
 physics_manim_agent = LlmAgent(
     name="PhysicsManimAgent",
     model=Gemini(model="gemma-4-31b-it"),
-    generate_content_config=types.GenerateContentConfig(
-        thinking_config=types.ThinkingConfig(thinking_level="high")
-    ),
+    generate_content_config=build_generate_content_config(thinking_level="high"),
     instruction=PHYSICS_MANIM_INSTRUCTION,
     tools=[
         python_repl,

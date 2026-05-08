@@ -7,13 +7,14 @@ if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 from src.agents.pipeline import pipeline
+from src.agents.rate_limit import enable_rate_limit_retry_logging, get_fixed_429_sleep_seconds
 from src.utils import _build_user_message, _print_separator, _IMAGE_EXTENSIONS, _log_event, _log_event_no_content, _parse_verdict
 
 from dotenv import load_dotenv
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from authlib.deprecate import AuthlibDeprecationWarning
-import asyncio, warnings, argparse, re
+import asyncio, warnings, argparse
 
 # ignore warning
 warnings.filterwarnings("ignore", category=AuthlibDeprecationWarning)
@@ -25,6 +26,7 @@ warnings.filterwarnings(
 # 
 
 load_dotenv()
+enable_rate_limit_retry_logging()
 
 async def _run_pipeline_loop(
     question_arg: str,
@@ -86,28 +88,27 @@ async def _run_pipeline_loop(
         agents_seen = set()
         event_count = 0
         _rate_limited = False
-        try:
-            async for event in runner.run_async(
-                user_id=user_id,
-                session_id=attempt_session_id,
-                new_message=current_message,
-            ):
-                event_count += 1
-                if not event.content or not event.content.parts:
-                    _log_event_no_content(event, agents_seen)
-                    continue
-                _log_event(event, agents_seen)
-        except Exception as exc:
-            exc_str = str(exc)
-            print(f"\n  [DEBUG] Pipeline runner raised exception: {type(exc).__name__}: {exc_str[:300]}")
-            if ("RESOURCE_EXHAUSTED" in exc_str or "429" in exc_str) and rl_retry < _MAX_RL_RETRIES:
-                m = re.search(r'retry in (\d+(?:\.\d+)?)', exc_str)
-                wait_secs = max(60, int(float(m.group(1))) + 5) if m else 65
-                print(f"\n  [RATE LIMIT] Waiting {wait_secs}s before retrying attempt {attempt}...")
-                await asyncio.sleep(wait_secs)
-                attempt -= 1  # don't consume this attempt slot
-                rl_retry += 1 # new suffix so next session ID is unique
-                _rate_limited = True
+        # try:
+        async for event in runner.run_async(
+            user_id=user_id,
+            session_id=attempt_session_id,
+            new_message=current_message,
+        ):
+            event_count += 1
+            if not event.content or not event.content.parts:
+                _log_event_no_content(event, agents_seen)
+                continue
+            _log_event(event, agents_seen)
+        # except Exception as exc:
+        #     exc_str = str(exc)
+        #     print(f"\n  [DEBUG] Pipeline runner raised exception: {type(exc).__name__}: {exc_str[:300]}")
+        #     if ("RESOURCE_EXHAUSTED" in exc_str or "429" in exc_str) and rl_retry < _MAX_RL_RETRIES:
+        #         wait_secs = get_fixed_429_sleep_seconds()
+        #         print(f"\n  [RATE LIMIT] Waiting {wait_secs}s before retrying attempt {attempt}...")
+        #         await asyncio.sleep(wait_secs)
+        #         attempt -= 1  # don't consume this attempt slot
+        #         rl_retry += 1 # new suffix so next session ID is unique
+        #         _rate_limited = True
 
         if _rate_limited:
             continue  # restart while loop with same attempt number

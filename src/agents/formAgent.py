@@ -11,7 +11,7 @@ and publishes the finished form URL back to state via output_key.
 from google.adk.agents import LlmAgent
 from google.adk.tools import FunctionTool
 from google.adk.models import Gemini
-from google.genai import types
+from src.agents.rate_limit import build_generate_content_config
 
 from src.tools.gif_converter import convert_mp4_to_gif
 from src.tools.form_tools import (
@@ -106,9 +106,7 @@ Return ONLY this JSON object (no markdown fences, no extra text):
 form_agent = LlmAgent(
     name="FormPublisherAgent",
     model=Gemini(model="gemma-4-31b-it"),
-    generate_content_config=types.GenerateContentConfig(
-        thinking_config=types.ThinkingConfig(thinking_level="low")
-    ),
+    generate_content_config=build_generate_content_config(),
     instruction=FORM_AGENT_INSTRUCTION,
     tools=[
         FunctionTool(convert_mp4_to_gif),
