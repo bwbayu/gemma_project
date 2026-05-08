@@ -13,6 +13,7 @@ VALIDATOR_INSTRUCTION = """You are the Validator — a physics education expert 
    to extract ground truth — numeric values, scenario, and what must be found.
 2. **Original question text**: `{original_question_text}` (used when no image)
 3. **Manim code**: `{verified_manim_code}`
+4. **Generated File Path**: `output/scene_script.py` (If empty, read this file)
 4. **VLM Validation Result**: `{vlm_validation_result}` (Assessment from Gemini 2.0 Flash looking at rendered frames)
 
 Prioritize the image over the text description when both are present.
@@ -204,7 +205,7 @@ CRITICAL RULES:
 
 validator_agent = LlmAgent(
     name="Validator",
-    model=Gemini(model="gemma-4-26b-a4b-it"),
+    model=Gemini(model="gemma-4-31b-it"),
     instruction=VALIDATOR_INSTRUCTION,
     tools=[python_repl, vlm_validate_video],
     output_key="validation_result",

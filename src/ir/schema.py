@@ -1,6 +1,6 @@
 from enum import Enum
-from pydantic import BaseModel
-from typing import Optional, Literal, List
+from pydantic import BaseModel, Field
+from typing import Optional, Literal, List, Any
 
 
 # =========================================================
@@ -42,12 +42,12 @@ class Force(BaseModel):
     direction: ForceDirection
 
     # only used if direction == CUSTOM
-    custom_angle_deg: Optional[float] = None
+    custom_angle_deg: Optional[float] = Field(None, description="Angle in degrees, only used if direction is CUSTOM.")
 
     # e.g. "mg", "N", "f_k"
-    magnitude: Optional[str] = None
+    magnitude: str = Field(..., description="Symbolic or numeric magnitude, e.g. 'mg', '10', 'N', '0.1 * N'.")
 
-    label: Optional[str] = None
+    label: Optional[str] = Field(None, description="Display label for the force arrow.")
 
 
 # =========================================================
@@ -114,19 +114,21 @@ class TrackSegment(BaseModel):
     # ARC PROPERTIES
     # =========================
 
-    radius: Optional[float] = None
+    radius: Optional[float] = Field(None, description="Radius of the arc. Required for ARC segments if center is not provided.")
 
-    center: Optional[RelativePosition] = None
+    center: Optional[RelativePosition] = Field(None, description="Center position of the arc. Strongly recommended for ARC segments.")
 
-    clockwise: bool = False
+    angle_deg: Optional[float] = Field(None, description="Sweep angle in degrees. Positive for CCW, negative for CW.")
+
+    clockwise: bool = Field(False, description="Whether the arc is drawn clockwise. Default is False (CCW).")
 
     # =========================
     # SURFACE PROPERTIES
     # =========================
 
-    friction_coefficient: float = 0.0
+    friction_coefficient: float = Field(0.0, description="Coefficient of kinetic friction (mu_k) for this segment.")
 
-    label: Optional[str] = None
+    label: Optional[str] = Field(None, description="Label for this segment (e.g., 'A-B').")
 
 
 class Track(BaseModel):

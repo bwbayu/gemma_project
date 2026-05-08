@@ -9,7 +9,7 @@ from src.utils import _PROJECT_ROOT
 def vlm_validate_video(tool_context: ToolContext) -> dict:
     """
     ADK Tool that performs visual validation of the rendered Manim video.
-    Extracts frames and asks Gemini 2.0 Flash to compare them with the original question.
+    Extracts frames and compare them with the original question.
     """
     state = tool_context.state
     video_path = state.get("video_path", "")
@@ -72,7 +72,7 @@ Return ONLY a JSON object:
 
     try:
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemma-4-31b-it",
             contents=[types.Content(role="user", parts=parts)],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -80,8 +80,8 @@ Return ONLY a JSON object:
         )
         
         result = json.loads(response.text)
-        # Store in state so ValidatorAgent can see it
-        state["vlm_validation_result"] = result
+        # Store as JSON string so VALIDATOR_INSTRUCTION template interpolates cleanly
+        state["vlm_validation_result"] = json.dumps(result, ensure_ascii=False)
         return result
         
     except Exception as e:
@@ -90,5 +90,5 @@ Return ONLY a JSON object:
             "visual_verdict": "SKIP",
             "reason": f"VLM API call failed: {str(e)}"
         }
-        state["vlm_validation_result"] = error_result
+        state["vlm_validation_result"] = json.dumps(error_result, ensure_ascii=False)
         return error_result

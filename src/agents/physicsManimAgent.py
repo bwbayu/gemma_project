@@ -154,6 +154,6 @@ physics_manim_agent = LlmAgent(
         get_method_info,
         get_direction_constants,
     ],
-    output_key="manim_code",
+    output_key="verified_manim_code",
     description="Analyzes a physics question and produces working ManimCE animation code.",
 )
