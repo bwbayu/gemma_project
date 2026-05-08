@@ -185,7 +185,7 @@ CRITICAL RULES:
 
 validator_agent = LlmAgent(
     name="Validator",
-    model=Gemini(model="gemma-4-31b-it"),
+    model=Gemini(model="gemma-4-26b-a4b-it"),
     instruction=VALIDATOR_INSTRUCTION,
     tools=[python_repl],
     output_key="validation_result",
