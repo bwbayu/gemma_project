@@ -12,3 +12,5 @@ env/
 /tools
 /.venv
 credentials.json
+rate_limit*.log
+token.json
