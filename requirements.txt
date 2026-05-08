@@ -151,3 +151,5 @@ watchdog==6.0.0
 websockets==15.0.1
 yarl==1.23.0
 zipp==3.23.1
+google-auth-oauthlib 
+google-api-python-client

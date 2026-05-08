@@ -11,3 +11,5 @@ env/
 /schemas
 /tools
 main.py
+/.venv
+credentials.json
