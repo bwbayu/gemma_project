@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Card } from '../components/ui/Card'
-import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { mockService } from '../features/mock/service'
@@ -116,13 +115,12 @@ export function DashboardPage() {
       <div className="grid gap-4 md:grid-cols-2">
         <Card className="space-y-3">
           <div className="flex items-center justify-between">
-            <p className="font-medium text-ink">Readiness</p>
-            <Badge tone="success">Mocked Ready</Badge>
+            <p className="font-medium text-ink">Workspace Snapshot</p>
           </div>
           <ul className="space-y-2 text-sm text-slate">
-            <li>Google credentials: available (simulated)</li>
-            <li>Token session: available (simulated)</li>
-            <li>Backend availability: intentionally disconnected</li>
+            <li>Mode: frontend-only mock</li>
+            <li>Persistence: localStorage</li>
+            <li>Workspace model: single active workspace</li>
           </ul>
           <p className="text-xs text-slate">
             {hydrating

@@ -5,55 +5,12 @@ import { Card } from '../components/ui/Card'
 import { mockService } from '../features/mock/service'
 import type { GenerationJob, Workspace } from '../features/mock/types'
 
-type ReadinessItem = {
-  label: string
-  value: string
-  tone: 'neutral' | 'success' | 'warning'
-  guidance: string
-}
-
-function buildReadiness(
-  workspace: Workspace | null,
-  job: GenerationJob | null,
-): ReadinessItem[] {
-  return [
-    {
-      label: 'Google Credentials',
-      value: 'Available (mock)',
-      tone: 'success',
-      guidance: 'In production this comes from secure runtime configuration.',
-    },
-    {
-      label: 'Token Session',
-      value: 'Available (mock)',
-      tone: 'success',
-      guidance: 'In production this must be refreshed and validated at startup.',
-    },
-    {
-      label: 'Workspace State',
-      value: workspace ? 'Active workspace loaded' : 'No active workspace',
-      tone: workspace ? 'success' : 'warning',
-      guidance: workspace
-        ? 'You can continue generating in the active workspace.'
-        : 'Go to Dashboard and create/open a workspace first.',
-    },
-    {
-      label: 'Generation Pipeline',
-      value: job ? `Running step: ${job.stage}` : 'Idle',
-      tone: job ? 'neutral' : 'success',
-      guidance: job
-        ? 'Wait until review is ready, then decide approve/regenerate/discard.'
-        : 'No active generation job.',
-    },
-  ]
-}
-
 export function SettingsPage() {
   const [workspace, setWorkspace] = useState<Workspace | null>(null)
   const [activeJob, setActiveJob] = useState<GenerationJob | null>(null)
   const [loading, setLoading] = useState(true)
 
-  async function refreshReadiness(withLoader: boolean) {
+  async function refreshWorkspaceData(withLoader: boolean) {
     if (withLoader) {
       setLoading(true)
     }
@@ -68,15 +25,13 @@ export function SettingsPage() {
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      void refreshReadiness(false)
+      void refreshWorkspaceData(false)
     }, 0)
 
     return () => {
       window.clearTimeout(timer)
     }
   }, [])
-
-  const readiness = buildReadiness(workspace, activeJob)
 
   return (
     <section className="space-y-5">
@@ -85,31 +40,48 @@ export function SettingsPage() {
           Settings
         </h1>
         <p className="text-sm text-slate">
-          Operational readiness panel for the FE-only mock environment.
+          Workspace and activity configuration view for frontend mock mode.
         </p>
       </header>
 
       <Card className="space-y-3">
         <div className="flex items-center justify-between">
-          <p className="font-medium text-ink">Readiness Diagnostics</p>
+          <p className="font-medium text-ink">Current Session</p>
           <Button
             disabled={loading}
-            onClick={() => void refreshReadiness(true)}
+            onClick={() => void refreshWorkspaceData(true)}
             variant="secondary"
           >
-            {loading ? 'Refreshing...' : 'Refresh Status'}
+            {loading ? 'Refreshing...' : 'Refresh'}
           </Button>
         </div>
         <ul className="space-y-3">
-          {readiness.map((item) => (
-            <li className="rounded-md border border-line bg-white p-3" key={item.label}>
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-medium text-ink">{item.label}</p>
-                <Badge tone={item.tone}>{item.value}</Badge>
-              </div>
-              <p className="mt-2 text-xs text-slate">{item.guidance}</p>
-            </li>
-          ))}
+          <li className="rounded-md border border-line bg-white p-3">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-medium text-ink">Active Workspace</p>
+              <Badge tone={workspace ? 'success' : 'warning'}>
+                {workspace ? 'Loaded' : 'None'}
+              </Badge>
+            </div>
+            <p className="mt-2 text-xs text-slate">
+              {workspace
+                ? `${workspace.formRef.formTitle} (${workspace.formRef.formId})`
+                : 'No active workspace. Open or create one from Dashboard.'}
+            </p>
+          </li>
+          <li className="rounded-md border border-line bg-white p-3">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-medium text-ink">Latest Generation Job</p>
+              <Badge tone={activeJob ? 'neutral' : 'success'}>
+                {activeJob ? 'Running' : 'Idle'}
+              </Badge>
+            </div>
+            <p className="mt-2 text-xs text-slate">
+              {activeJob
+                ? `${activeJob.stage} - ${activeJob.message}`
+                : 'No active generation job at the moment.'}
+            </p>
+          </li>
         </ul>
       </Card>
 
