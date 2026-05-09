@@ -153,3 +153,6 @@ yarl==1.23.0
 zipp==3.23.1
 google-auth-oauthlib 
 google-api-python-client
+firebase-admin
+google-cloud-firestore
+google-cloud-storage
