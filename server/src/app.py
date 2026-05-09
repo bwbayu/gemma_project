@@ -69,7 +69,6 @@ async def _run_pipeline_loop(
                 "original_question_text": original_question_text,
                 "validator_feedback": previous_feedback,
                 "verified_manim_code": "",
-                "vlm_validation_result": "(not yet assessed — call vlm_validate_video first)",
             },
         )
 
@@ -216,7 +215,6 @@ async def _run_generation_pipeline_loop(
                 "original_question_text": original_question_text,
                 "validator_feedback": previous_feedback,
                 "verified_manim_code": "",
-                "vlm_validation_result": "(not yet assessed — call vlm_validate_video first)",
             },
         )
 
