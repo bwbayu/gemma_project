@@ -27,7 +27,7 @@ export function HelpPage() {
           Help and Tutorial
         </h1>
         <p className="text-sm text-slate">
-          Fast onboarding for teacher workflow in the FE-only mock system.
+          Fast onboarding for teacher workflow using backend-integrated APIs.
         </p>
       </header>
 
@@ -63,10 +63,10 @@ export function HelpPage() {
       </Card>
 
       <Card className="space-y-2 text-sm text-slate">
-        <p className="font-medium text-ink">Mock Mode Note</p>
+        <p className="font-medium text-ink">Operator Note</p>
         <p>
-          This frontend currently uses local mock data and localStorage persistence.
-          The Google Form links and animation assets are placeholders for FE flow validation.
+          This frontend is wired to backend APIs. Workspace, question status, and
+          review decisions are backed by the server state.
         </p>
       </Card>
     </section>

@@ -1,7 +1,6 @@
-import { createBrowserRouter } from 'react-router-dom'
+import { Navigate, createBrowserRouter } from 'react-router-dom'
 import { AppShell } from './AppShell'
 import { DashboardPage } from '../pages/DashboardPage'
-import { WorkspacePage } from '../pages/WorkspacePage'
 import { SettingsPage } from '../pages/SettingsPage'
 import { HelpPage } from '../pages/HelpPage'
 import { NotFoundPage } from '../pages/NotFoundPage'
@@ -12,7 +11,7 @@ export const appRouter = createBrowserRouter([
     element: <AppShell />,
     children: [
       { index: true, element: <DashboardPage /> },
-      { path: 'workspace', element: <WorkspacePage /> },
+      { path: 'workspace', element: <Navigate replace to="/" /> },
       { path: 'settings', element: <SettingsPage /> },
       { path: 'help', element: <HelpPage /> },
       { path: '*', element: <NotFoundPage /> },

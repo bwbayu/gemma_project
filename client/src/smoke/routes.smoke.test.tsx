@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { RouterProvider, createMemoryRouter } from 'react-router-dom'
+import { Navigate, RouterProvider, createMemoryRouter } from 'react-router-dom'
 import { AppShell } from '../app/AppShell'
 import { DashboardPage } from '../pages/DashboardPage'
-import { WorkspacePage } from '../pages/WorkspacePage'
 import { SettingsPage } from '../pages/SettingsPage'
 import { HelpPage } from '../pages/HelpPage'
 import { NotFoundPage } from '../pages/NotFoundPage'
@@ -16,7 +15,7 @@ function renderAt(path: string) {
         element: <AppShell />,
         children: [
           { index: true, element: <DashboardPage /> },
-          { path: 'workspace', element: <WorkspacePage /> },
+          { path: 'workspace', element: <Navigate replace to="/" /> },
           { path: 'settings', element: <SettingsPage /> },
           { path: 'help', element: <HelpPage /> },
           { path: '*', element: <NotFoundPage /> },
@@ -36,9 +35,10 @@ describe('app shell smoke', () => {
     expect(screen.getByRole('heading', { name: 'Dashboard' })).toBeInTheDocument()
   })
 
-  it('renders workspace route', async () => {
+  it('renders workspace alias route', async () => {
     renderAt('/workspace')
-    expect(await screen.findByRole('heading', { name: 'Workspace' })).toBeInTheDocument()
+    const headings = await screen.findAllByRole('heading', { name: 'Dashboard' })
+    expect(headings.length).toBeGreaterThan(0)
   })
 
   it('renders settings route', () => {

@@ -1,30 +1,3 @@
-# ── manim_runner.py ───────────────────────────────────────────────────────────
-#
-# Global flow [5.5]: Tool called by ManimCoder agent to render Manim code.
-#
-# ADK tool that takes Manim Python code (string) and actually renders it into
-# an MP4 video. This is the integration point between the LLM agent world and
-# the real Manim subprocess.
-#
-# DATA FLOW (sub-steps of [5.5]):
-#   [5.5.1] Strip markdown fences from LLM output
-#   [5.5.2] Store verified_manim_code in session state (BEFORE rendering)
-#   [5.5.3] Write code to output/scene_script.py
-#   [5.5.4] Run: python -m manim -ql output/scene_script.py SceneName
-#   [5.5.5] On success: store video_path in session state → read at [3.3.4]
-#   [5.5.6] On failure: return truncated error → ManimCoder self-debug loop [5.6]
-#
-# WHY we store verified_manim_code BEFORE subprocess [5.5.2]:
-#   The Validator agent [6] needs to inspect the code even if rendering fails.
-#   If we only stored it on success, the Validator would find an empty string
-#   in state and can't give useful feedback about what went wrong in the code.
-#
-# WHY sys.executable instead of "python" or "python3":
-#   sys.executable is the exact Python binary currently running this process.
-#   This guarantees we use the same Python environment (same venv, same
-#   installed packages) for the Manim subprocess. Hardcoding "python" could
-#   resolve to system Python, which may not have manim installed.
-
 import ast
 import os
 import re

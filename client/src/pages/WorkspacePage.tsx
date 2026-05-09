@@ -1,25 +1,25 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Badge } from '../components/ui/Badge'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
-import { mockService } from '../features/mock/service'
-import type {
-  GenerationJob,
-  JobStage,
-  QuestionItem,
-  ReviewResult,
-  Workspace,
-} from '../features/mock/types'
-
-const PROGRESS_FLOW: Array<{ stage: JobStage; message: string }> = [
-  { stage: 'reading_question', message: 'Reading source question...' },
-  { stage: 'generating_animation', message: 'Generating animation plan...' },
-  { stage: 'rendering_video', message: 'Rendering mock video output...' },
-  { stage: 'validating_output', message: 'Running mock validation checks...' },
-  { stage: 'preparing_assets', message: 'Preparing review assets...' },
-]
+import { ApiError } from '../features/api/http'
+import { getJob, isTerminalJob } from '../features/api/jobs'
+import {
+  createQuestionFromImage,
+  createQuestionFromText,
+  listWorkspaceQuestions,
+} from '../features/api/questions'
+import {
+  approveQuestion,
+  discardQuestion,
+  getQuestionReview,
+  regenerateQuestion,
+} from '../features/api/review'
+import type { FormLinks } from '../features/api/review'
+import { getActiveWorkspace } from '../features/api/workspace'
+import type { GenerationJob, JobStage, QuestionItem, ReviewResult, Workspace } from '../features/mock/types'
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleString()
@@ -53,12 +53,21 @@ function getReviewSourceText(reviewResult: ReviewResult): string {
   return 'Uploaded image source'
 }
 
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms)
+  })
+}
+
+const POLL_INTERVAL_MS = 2000
+
 export function WorkspacePage() {
   const navigate = useNavigate()
   const [workspace, setWorkspace] = useState<Workspace | null>(null)
   const [questionItems, setQuestionItems] = useState<QuestionItem[]>([])
   const [activeJob, setActiveJob] = useState<GenerationJob | null>(null)
   const [reviewResult, setReviewResult] = useState<ReviewResult | null>(null)
+  const [approvedFormLinks, setApprovedFormLinks] = useState<FormLinks | null>(null)
   const [loading, setLoading] = useState(true)
 
   const [mode, setMode] = useState<'image' | 'text'>('image')
@@ -68,22 +77,42 @@ export function WorkspacePage() {
   const [decisionLoading, setDecisionLoading] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [submitSuccess, setSubmitSuccess] = useState('')
+  const [loadError, setLoadError] = useState('')
   const [copyMessage, setCopyMessage] = useState('')
+
+  const pollTokenRef = useRef(0)
 
   useEffect(() => {
     let mounted = true
 
     async function hydrateWorkspace() {
-      const [found, list, job] = await Promise.all([
-        mockService.getWorkspace(),
-        mockService.listQuestionItems(),
-        mockService.getActiveJob(),
-      ])
-      if (mounted) {
+      try {
+        const found = await getActiveWorkspace()
+        if (!mounted) {
+          return
+        }
         setWorkspace(found)
-        setQuestionItems(list)
-        setActiveJob(job)
-        setLoading(false)
+        if (found) {
+          const questions = await listWorkspaceQuestions(found.workspaceId)
+          if (mounted) {
+            setQuestionItems(questions)
+          }
+        } else {
+          setQuestionItems([])
+        }
+      } catch (error) {
+        if (!mounted) {
+          return
+        }
+        if (error instanceof ApiError) {
+          setLoadError(error.message)
+        } else {
+          setLoadError('Could not load workspace data from backend.')
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false)
+        }
       }
     }
 
@@ -91,35 +120,35 @@ export function WorkspacePage() {
 
     return () => {
       mounted = false
+      pollTokenRef.current = 0
     }
   }, [])
 
-  async function refreshQuestions(): Promise<void> {
-    const list = await mockService.listQuestionItems()
+  async function refreshQuestions(targetWorkspaceId: string): Promise<void> {
+    const list = await listWorkspaceQuestions(targetWorkspaceId)
     setQuestionItems(list)
   }
 
-  async function runProgress(questionItemId: string): Promise<void> {
-    for (const step of PROGRESS_FLOW) {
-      const updated = await mockService.setActiveJobStage(step.stage, step.message)
-      setActiveJob(updated)
-    }
+  async function trackJob(jobId: string, workspaceId: string): Promise<void> {
+    const token = Date.now()
+    pollTokenRef.current = token
 
-    const review = await mockService.finalizeGeneration(questionItemId)
-    if (!review) {
-      setSubmitError('Generation finished without review payload.')
-      return
-    }
+    while (pollTokenRef.current === token) {
+      const latest = await getJob(jobId)
+      setActiveJob(latest)
 
-    const awaitReviewJob = await mockService.setActiveJobStage(
-      'awaiting_review',
-      review.validation.verdict === 'PASS'
-        ? 'Ready for teacher review.'
-        : 'Validation flagged issues. Regenerate or discard is recommended.',
-    )
-    setActiveJob(awaitReviewJob)
-    setReviewResult(review)
-    await refreshQuestions()
+      if (isTerminalJob(latest)) {
+        await refreshQuestions(workspaceId)
+        if (latest.status === 'failed' || latest.stage === 'failed') {
+          setSubmitError(latest.message || 'Generation failed.')
+        } else {
+          setSubmitSuccess('Generation completed. Open review to inspect result.')
+        }
+        return
+      }
+
+      await wait(POLL_INTERVAL_MS)
+    }
   }
 
   async function handleStartGeneration(event: FormEvent<HTMLFormElement>) {
@@ -132,8 +161,10 @@ export function WorkspacePage() {
 
     setSubmitError('')
     setSubmitSuccess('')
+    setLoadError('')
     setCopyMessage('')
     setReviewResult(null)
+    setApprovedFormLinks(null)
     setSubmitting(true)
 
     try {
@@ -142,32 +173,30 @@ export function WorkspacePage() {
           setSubmitError('Choose an image file first.')
           return
         }
-        const result = await mockService.startQuestionFromImage(
-          workspace.workspaceId,
-          selectedFile.name,
-        )
+        const result = await createQuestionFromImage(workspace.workspaceId, selectedFile)
         setQuestionItems((prev) => [result.question, ...prev])
         setActiveJob(result.job)
         setSelectedFile(null)
-        setSubmitSuccess('Image question queued. Running generation flow...')
-        await runProgress(result.question.questionItemId)
+        setSubmitSuccess('Image question submitted. Tracking backend job...')
+        await trackJob(result.job.jobId, workspace.workspaceId)
       } else {
         if (!textInput.trim()) {
           setSubmitError('Paste question text first.')
           return
         }
-        const result = await mockService.startQuestionFromText(
-          workspace.workspaceId,
-          textInput,
-        )
+        const result = await createQuestionFromText(workspace.workspaceId, textInput.trim())
         setQuestionItems((prev) => [result.question, ...prev])
         setActiveJob(result.job)
         setTextInput('')
-        setSubmitSuccess('Text question queued. Running generation flow...')
-        await runProgress(result.question.questionItemId)
+        setSubmitSuccess('Text question submitted. Tracking backend job...')
+        await trackJob(result.job.jobId, workspace.workspaceId)
       }
-    } catch {
-      setSubmitError('Could not start mock generation. Try again.')
+    } catch (error) {
+      if (error instanceof ApiError) {
+        setSubmitError(error.message)
+      } else {
+        setSubmitError('Could not start generation. Try again.')
+      }
     } finally {
       setSubmitting(false)
     }
@@ -175,102 +204,128 @@ export function WorkspacePage() {
 
   async function handleOpenReview(questionItemId: string): Promise<void> {
     setSubmitError('')
-    setSubmitSuccess('')
     setCopyMessage('')
-    const payload = await mockService.getReviewResult(questionItemId)
-    if (!payload) {
-      setSubmitError('No review payload yet for this question. Regenerate to create one.')
-      return
+    setApprovedFormLinks(null)
+    try {
+      const review = await getQuestionReview(questionItemId)
+      setReviewResult(review)
+      setSubmitSuccess('Review payload loaded.')
+    } catch (error) {
+      if (error instanceof ApiError && error.code === 'REVIEW_NOT_READY') {
+        setSubmitSuccess('Review is still generating. Please check again shortly.')
+      } else if (error instanceof ApiError) {
+        setSubmitError(error.message)
+      } else {
+        setSubmitError('Could not fetch review payload.')
+      }
     }
-
-    setReviewResult(payload)
   }
 
   async function handleApprove(): Promise<void> {
-    if (!reviewResult) {
+    if (!reviewResult || !workspace) {
       return
     }
-
     setDecisionLoading(true)
+    setSubmitError('')
+    setSubmitSuccess('')
     setCopyMessage('')
-    const appendJob = await mockService.setActiveJobStage(
-      'appending_to_form',
-      'Appending question to active form...',
-    )
-    setActiveJob(appendJob)
-
-    const updated = await mockService.approveQuestion(reviewResult.questionItemId)
-    if (!updated) {
-      setSubmitError('Could not approve this question.')
+    try {
+      const response = await approveQuestion(reviewResult.questionItemId)
+      setReviewResult(response.review)
+      setApprovedFormLinks(response.formLinks)
+      await refreshQuestions(workspace.workspaceId)
+      if (response.review.append.status === 'added') {
+        setSubmitSuccess('Question approved and appended to form.')
+      } else {
+        setSubmitError(response.review.append.errorMessage || 'Approve completed with append error.')
+      }
+    } catch (error) {
+      if (error instanceof ApiError) {
+        setSubmitError(error.message)
+      } else {
+        setSubmitError('Could not approve question.')
+      }
+    } finally {
       setDecisionLoading(false)
-      return
     }
-
-    setReviewResult(updated)
-    await refreshQuestions()
-    const completedJob = await mockService.setActiveJobStage(
-      'completed',
-      'Question appended to form in mock mode.',
-    )
-    setActiveJob(completedJob)
-    await mockService.clearActiveJob()
-    setActiveJob(null)
-    setDecisionLoading(false)
-  }
-
-  async function handleDiscard(): Promise<void> {
-    if (!reviewResult) {
-      return
-    }
-
-    setDecisionLoading(true)
-    await mockService.discardQuestion(reviewResult.questionItemId)
-    await refreshQuestions()
-    setReviewResult(null)
-    setDecisionLoading(false)
   }
 
   async function handleRegenerate(): Promise<void> {
     if (!reviewResult || !workspace) {
       return
     }
-
     setDecisionLoading(true)
+    setSubmitError('')
+    setSubmitSuccess('')
     setCopyMessage('')
-    const updated = await mockService.regenerateQuestion(reviewResult.questionItemId)
-    if (!updated) {
-      setSubmitError('Could not regenerate this question.')
+    setApprovedFormLinks(null)
+    try {
+      const response = await regenerateQuestion(reviewResult.questionItemId)
+      await refreshQuestions(workspace.workspaceId)
+      setReviewResult(null)
+      if (response.job) {
+        setActiveJob(response.job)
+        setSubmitSuccess('Regeneration started. Tracking backend job...')
+        await trackJob(response.job.jobId, workspace.workspaceId)
+      } else {
+        setSubmitSuccess('Regeneration requested.')
+      }
+    } catch (error) {
+      if (error instanceof ApiError) {
+        setSubmitError(error.message)
+      } else {
+        setSubmitError('Could not regenerate question.')
+      }
+    } finally {
       setDecisionLoading(false)
-      return
     }
+  }
 
-    await refreshQuestions()
-    setReviewResult(null)
-    const restart = await mockService.startRegenerationJob(
-      workspace.workspaceId,
-      updated.questionItemId,
-    )
-    if (!restart) {
-      setSubmitError('Could not initialize regeneration job.')
-      setDecisionLoading(false)
+  async function handleDiscard(): Promise<void> {
+    if (!reviewResult || !workspace) {
       return
     }
-    setActiveJob(restart)
-    await runProgress(updated.questionItemId)
-    setDecisionLoading(false)
+    setDecisionLoading(true)
+    setSubmitError('')
+    setSubmitSuccess('')
+    setCopyMessage('')
+    setApprovedFormLinks(null)
+    try {
+      await discardQuestion(reviewResult.questionItemId)
+      await refreshQuestions(workspace.workspaceId)
+      setReviewResult(null)
+      setSubmitSuccess('Question discarded.')
+    } catch (error) {
+      if (error instanceof ApiError) {
+        setSubmitError(error.message)
+      } else {
+        setSubmitError('Could not discard question.')
+      }
+    } finally {
+      setDecisionLoading(false)
+    }
   }
 
   async function handleCopyResponderLink(): Promise<void> {
-    if (!workspace) {
+    const responderUrl = approvedFormLinks?.formResponderUrl || workspace?.formRef.formResponderUrl
+    if (!responderUrl) {
       return
     }
 
     try {
-      await navigator.clipboard.writeText(workspace.formRef.formResponderUrl)
+      await navigator.clipboard.writeText(responderUrl)
       setCopyMessage('Responder link copied to clipboard.')
     } catch {
-      setCopyMessage('Clipboard unavailable. Copy manually from workspace header.')
+      setCopyMessage('Clipboard unavailable. Copy manually from form link.')
     }
+  }
+
+  function openFormLink(): void {
+    const editUrl = approvedFormLinks?.formEditUrl || workspace?.formRef.formEditUrl
+    if (!editUrl) {
+      return
+    }
+    window.open(editUrl, '_blank', 'noopener,noreferrer')
   }
 
   return (
@@ -280,17 +335,22 @@ export function WorkspacePage() {
           Workspace
         </h1>
         <p className="text-sm text-slate">
-          Manage intake, monitor generation progress, and make review decisions
-          (approve/regenerate/discard).
+          Backend-integrated intake, progress tracking, review, and decision workflow.
         </p>
       </header>
+
+      {loadError ? (
+        <Card className="border-[#f2d5c8] bg-[#fff4ee] text-sm text-[#b44f2a]">
+          {loadError}
+        </Card>
+      ) : null}
 
       <Card className="flex items-center justify-between">
         <div>
           {loading ? (
             <>
               <p className="font-medium text-ink">Loading workspace...</p>
-              <p className="text-sm text-slate">Checking local mock persistence.</p>
+              <p className="text-sm text-slate">Checking backend active workspace.</p>
             </>
           ) : workspace ? (
             <>
@@ -324,8 +384,7 @@ export function WorkspacePage() {
           <p className="font-medium text-ink">Question List</p>
           {questionItems.length === 0 ? (
             <p className="text-sm text-slate">
-              No questions yet. Create your first image/text question from the
-              panel on the right.
+              No questions yet. Submit your first image/text question from the right panel.
             </p>
           ) : (
             <ul className="space-y-2">
@@ -360,7 +419,7 @@ export function WorkspacePage() {
         <Card className="space-y-3">
           <p className="font-medium text-ink">Create New Animation</p>
           <p className="text-sm text-slate">
-            Flow: intake to generation progress to review decision actions.
+            Intake is connected to backend `POST /workspaces/{'{id}'}/questions`.
           </p>
 
           <div className="flex gap-2">
@@ -420,7 +479,7 @@ export function WorkspacePage() {
             ) : null}
 
             <Button disabled={submitting || !workspace} type="submit" variant="secondary">
-              {submitting ? 'Starting...' : 'Start Mock Generation'}
+              {submitting ? 'Submitting...' : 'Start Generation'}
             </Button>
           </form>
         </Card>
@@ -436,6 +495,9 @@ export function WorkspacePage() {
             </p>
           </div>
           <p className="text-sm text-slate">{activeJob.message}</p>
+          {activeJob.status ? (
+            <p className="text-xs text-slate">Status: {activeJob.status}</p>
+          ) : null}
         </Card>
       ) : null}
 
@@ -454,19 +516,51 @@ export function WorkspacePage() {
               {reviewResult.source.inputType === 'text' ? (
                 <p className="text-sm text-slate">{getReviewSourceText(reviewResult)}</p>
               ) : (
-                <div className="rounded-md border border-dashed border-line bg-[#faf8f4] p-3 text-sm text-slate">
-                  Image source placeholder: {getReviewSourceText(reviewResult)}
-                </div>
+                reviewResult.source.imageUrl ? (
+                  <img
+                    alt="Question source"
+                    className="max-h-80 w-full rounded-md border border-line bg-white object-contain"
+                    src={reviewResult.source.imageUrl}
+                  />
+                ) : (
+                  <div className="rounded-md border border-dashed border-line bg-[#faf8f4] p-3 text-sm text-slate">
+                    Source image unavailable.
+                  </div>
+                )
               )}
             </Card>
 
             <Card className="space-y-2 p-3 shadow-none">
               <p className="text-sm font-medium text-ink">Generated Preview</p>
-              <div className="rounded-md border border-dashed border-line bg-[#f7fbfe] p-3 text-sm text-slate">
-                Mock media assets prepared.
-              </div>
-              <p className="text-xs text-slate">Video: {reviewResult.result.videoUrl}</p>
-              <p className="text-xs text-slate">GIF: {reviewResult.result.gifUrl}</p>
+              {reviewResult.result.videoUrl ? (
+                <video
+                  className="max-h-80 w-full rounded-md border border-line bg-black object-contain"
+                  controls
+                  playsInline
+                  preload="metadata"
+                  src={reviewResult.result.videoUrl}
+                />
+              ) : reviewResult.result.gifUrl ? (
+                <img
+                  alt="Generated animation preview"
+                  className="max-h-80 w-full rounded-md border border-line bg-white object-contain"
+                  src={reviewResult.result.gifUrl}
+                />
+              ) : (
+                <div className="rounded-md border border-dashed border-line bg-[#f7fbfe] p-3 text-sm text-slate">
+                  No preview media URL available.
+                </div>
+              )}
+              {reviewResult.result.videoUrl ? (
+                <a
+                  className="text-xs text-accent underline"
+                  href={reviewResult.result.videoUrl}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  Open video in new tab
+                </a>
+              ) : null}
             </Card>
           </div>
 
@@ -480,6 +574,9 @@ export function WorkspacePage() {
             </ul>
             <p className="text-sm text-slate">{reviewResult.summary.studentTask}</p>
             <p className="text-sm text-slate">{reviewResult.validation.summary}</p>
+            {reviewResult.append.status === 'error' && reviewResult.append.errorMessage ? (
+              <p className="text-sm text-[#b44f2a]">Append error: {reviewResult.append.errorMessage}</p>
+            ) : null}
           </Card>
 
           <div className="flex flex-wrap gap-3">
@@ -504,14 +601,7 @@ export function WorkspacePage() {
 
           {reviewResult.append.status === 'added' ? (
             <div className="flex flex-wrap items-center gap-3">
-              <Button
-                onClick={() => {
-                  if (workspace) {
-                    window.open(workspace.formRef.formEditUrl, '_blank', 'noopener,noreferrer')
-                  }
-                }}
-                variant="secondary"
-              >
+              <Button onClick={openFormLink} variant="secondary">
                 Open Form
               </Button>
               <Button onClick={() => void handleCopyResponderLink()} variant="secondary">
