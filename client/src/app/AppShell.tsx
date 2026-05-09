@@ -1,10 +1,9 @@
-import { BookOpen, LayoutDashboard, Settings, Workflow } from 'lucide-react'
+import { BookOpen, LayoutDashboard, Settings } from 'lucide-react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { cn } from '../lib/cn'
 
 const navItems = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
-  { to: '/workspace', label: 'Workspace', icon: Workflow, end: false },
   { to: '/settings', label: 'Settings', icon: Settings, end: false },
   { to: '/help', label: 'Help', icon: BookOpen, end: false },
 ]
@@ -20,9 +19,6 @@ export function AppShell() {
             </p>
             <p className="text-xs text-slate sm:text-sm">Teacher Authoring Dashboard</p>
           </div>
-          <span className="rounded-full bg-[#edf6f3] px-2.5 py-1 text-[11px] font-medium text-accent sm:px-3 sm:text-xs">
-            FE Only / Mock Mode
-          </span>
         </div>
       </header>
 

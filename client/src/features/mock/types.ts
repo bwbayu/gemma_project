@@ -39,9 +39,12 @@ export interface GenerationJob {
   workspaceId: string
   questionItemId: string
   stage: JobStage
+  status?: 'queued' | 'running' | 'completed' | 'failed'
   attempt: number
   maxAttempts: number
   message: string
+  error?: unknown
+  finishedAt?: string | null
 }
 
 export interface ReviewResult {
@@ -64,10 +67,12 @@ export interface ReviewResult {
   validation: {
     verdict: 'PASS' | 'FAIL'
     summary: string
+    local_video_path?: string
   }
   append: {
     status: 'not_started' | 'in_progress' | 'added' | 'error'
     formId: string
+    errorMessage?: string | null
   }
 }
 

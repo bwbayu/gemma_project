@@ -5,7 +5,6 @@ from fastapi.responses import JSONResponse
 
 from app.api.schemas.workspace import (
     CreateWorkspaceRequest,
-    OpenWorkspaceRequest,
     WorkspaceLinksResponse,
     WorkspaceModel,
 )
@@ -13,7 +12,6 @@ from app.services.workspace_service import (
     create_workspace_service,
     get_active_workspace_service,
     get_workspace_links_service,
-    open_workspace_service,
 )
 
 router = APIRouter(prefix="/workspaces", tags=["workspaces"])
@@ -30,11 +28,6 @@ def get_active_workspace():
 @router.post("", response_model=WorkspaceModel, status_code=status.HTTP_201_CREATED)
 def create_workspace(payload: CreateWorkspaceRequest):
     return create_workspace_service(payload.title, payload.description)
-
-
-@router.post("/open", response_model=WorkspaceModel)
-def open_workspace(payload: OpenWorkspaceRequest):
-    return open_workspace_service(payload.form_ref)
 
 
 @router.get("/{workspace_id}/links", response_model=WorkspaceLinksResponse)

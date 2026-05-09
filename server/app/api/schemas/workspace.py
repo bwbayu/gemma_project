@@ -29,10 +29,6 @@ class CreateWorkspaceRequest(_ApiModel):
     description: str
 
 
-class OpenWorkspaceRequest(_ApiModel):
-    form_ref: str = Field(alias="formRef")
-
-
 class WorkspaceLinksResponse(_ApiModel):
     workspace_id: str = Field(alias="workspaceId")
     form_edit_url: str = Field(alias="formEditUrl")
