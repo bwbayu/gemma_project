@@ -6,7 +6,7 @@ if hasattr(sys.stdout, "reconfigure"):
 if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
-from src.agents.pipeline import pipeline
+from src.agents.pipeline import pipeline, generation_pipeline
 from src.agents.rate_limit import enable_rate_limit_retry_logging, get_fixed_429_sleep_seconds
 from src.utils import _build_user_message, _print_separator, _IMAGE_EXTENSIONS, _log_event, _log_event_no_content, _parse_verdict
 
@@ -50,17 +50,7 @@ async def _run_pipeline_loop(
     previous_feedback = ""
     feedback = ""
 
-    if os.path.isfile(question_arg):
-        ext = os.path.splitext(question_arg)[1].lower()
-        if ext in _IMAGE_EXTENSIONS:
-            original_question_text = (
-                f"[Image input: {question_arg}] See the image in conversation history for ground truth."
-            )
-        else:
-            with open(question_arg, "r", encoding="utf-8") as f:
-                original_question_text = f.read().strip()
-    else:
-        original_question_text = question_arg
+    original_question_text = _resolve_original_question_text(question_arg)
 
     _MAX_RL_RETRIES = 5   # max 429 pauses per validation attempt
     attempt = 0
@@ -177,6 +167,97 @@ async def _run_pipeline_loop(
 
     return ""
 
+
+def _resolve_original_question_text(question_arg: str) -> str:
+    if os.path.isfile(question_arg):
+        ext = os.path.splitext(question_arg)[1].lower()
+        if ext in _IMAGE_EXTENSIONS:
+            return f"[Image input: {question_arg}] See the image in conversation history for ground truth."
+        with open(question_arg, "r", encoding="utf-8") as f:
+            return f.read().strip()
+    return question_arg
+
+
+async def _run_generation_pipeline_loop(
+    question_arg: str,
+    max_retries: int,
+    app_name: str,
+    user_id: str,
+    session_id: str,
+) -> tuple[str, str, str]:
+    """
+    Backend generation loop (Coder -> Validator only).
+
+    Returns (video_path, verdict, feedback_summary).
+    """
+    session_service = InMemorySessionService()
+    runner = Runner(
+        agent=generation_pipeline,
+        app_name=app_name,
+        session_service=session_service,
+    )
+
+    initial_message = _build_user_message(question_arg)
+    original_question_text = _resolve_original_question_text(question_arg)
+    last_video_path = ""
+    feedback = ""
+    previous_feedback = ""
+
+    attempt = 0
+    while attempt < max_retries:
+        attempt += 1
+        attempt_session_id = f"{session_id}_gen_attempt_{attempt}"
+        await session_service.create_session(
+            app_name=app_name,
+            user_id=user_id,
+            session_id=attempt_session_id,
+            state={
+                "original_question_text": original_question_text,
+                "validator_feedback": previous_feedback,
+                "verified_manim_code": "",
+            },
+        )
+
+        async for event in runner.run_async(
+            user_id=user_id,
+            session_id=attempt_session_id,
+            new_message=initial_message,
+        ):
+            if not event.content or not event.content.parts:
+                continue
+
+        session = await session_service.get_session(
+            app_name=app_name,
+            user_id=user_id,
+            session_id=attempt_session_id,
+        )
+        state = session.state
+        video_path = state.get("video_path", "")
+        if video_path and os.path.exists(video_path):
+            last_video_path = video_path
+
+        validation_raw = state.get("validation_result", "")
+        verdict, feedback, suggested_fixes = _parse_verdict(validation_raw)
+        if verdict == "PASS":
+            return video_path, verdict, feedback
+
+        if attempt < max_retries:
+            fix_lines = "\n".join(f"  - {f}" for f in suggested_fixes) if suggested_fixes else "  (none specified)"
+            raw_feedback = (
+                f"VALIDATION FAILED on attempt {attempt}/{max_retries}.\n\n"
+                f"Feedback:\n{feedback}\n\n"
+                f"Suggested fixes:\n{fix_lines}\n\n"
+                "Please rewrite the animation from scratch and address all issues above."
+            )
+            _MAX_FEEDBACK = 2000
+            previous_feedback = (
+                raw_feedback[:_MAX_FEEDBACK] + "..." if len(raw_feedback) > _MAX_FEEDBACK else raw_feedback
+            )
+
+    if last_video_path:
+        return last_video_path, "FAIL", feedback
+    return "", "FAIL", feedback or "Generation did not produce a valid output."
+
 async def run_pipeline(
     question_arg: str,
     max_retries: int = 3,
@@ -205,6 +286,35 @@ async def run_pipeline(
     except asyncio.TimeoutError:
         print(f"\n  ERROR: Pipeline timed out after {timeout} seconds.")
         return ""
+
+
+async def run_generation_pipeline(
+    question_arg: str,
+    max_retries: int = 1,
+    timeout: int = 1200,
+) -> tuple[str, str, str]:
+    """
+    Run generation-only pipeline (Coder -> Validator) without form publishing.
+
+    Returns (video_path, verdict, feedback_summary).
+    """
+    app_name = "physics_animator"
+    user_id = "user"
+    session_id = "session_generation"
+
+    try:
+        return await asyncio.wait_for(
+            _run_generation_pipeline_loop(
+                question_arg=question_arg,
+                max_retries=max_retries,
+                app_name=app_name,
+                user_id=user_id,
+                session_id=session_id,
+            ),
+            timeout=timeout,
+        )
+    except asyncio.TimeoutError:
+        return "", "FAIL", f"Generation pipeline timed out after {timeout} seconds."
 
 # ENTRYPOINT
 def main() -> None:

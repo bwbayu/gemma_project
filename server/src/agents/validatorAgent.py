@@ -184,12 +184,16 @@ CRITICAL RULES:
 3. Even if python_repl fails, you MUST still output the JSON verdict
 """
 
-validator_agent = LlmAgent(
-    name="Validator",
-    model=Gemini(model="gemma-4-31b-it"),
-    generate_content_config=build_generate_content_config(),
-    instruction=VALIDATOR_INSTRUCTION,
-    tools=[python_repl],
-    output_key="validation_result",
-    description="Validates that the generated Manim animation correctly and safely represents the physics question.",
-)
+def make_validator_agent() -> LlmAgent:
+    return LlmAgent(
+        name="Validator",
+        model=Gemini(model="gemma-4-31b-it"),
+        generate_content_config=build_generate_content_config(),
+        instruction=VALIDATOR_INSTRUCTION,
+        tools=[python_repl],
+        output_key="validation_result",
+        description="Validates that the generated Manim animation correctly and safely represents the physics question.",
+    )
+
+
+validator_agent = make_validator_agent()

@@ -135,23 +135,27 @@ self.wait(3)
 {validator_feedback}
 """
 
-physics_manim_agent = LlmAgent(
-    name="PhysicsManimAgent",
-    model=Gemini(model="gemma-4-31b-it"),
-    generate_content_config=build_generate_content_config(thinking_level="high"),
-    instruction=PHYSICS_MANIM_INSTRUCTION,
-    tools=[
-        python_repl,
-        execute_manim_code,
-        get_class_info,
-        get_class_info_batch,
-        search_manim_classes,
-        list_animation_classes,
-        list_mobject_classes,
-        get_class_methods,
-        get_method_info,
-        get_direction_constants,
-    ],
-    output_key="manim_code",
-    description="Analyzes a physics question and produces working ManimCE animation code.",
-)
+def make_physics_manim_agent() -> LlmAgent:
+    return LlmAgent(
+        name="PhysicsManimAgent",
+        model=Gemini(model="gemma-4-31b-it"),
+        generate_content_config=build_generate_content_config(thinking_level="high"),
+        instruction=PHYSICS_MANIM_INSTRUCTION,
+        tools=[
+            python_repl,
+            execute_manim_code,
+            get_class_info,
+            get_class_info_batch,
+            search_manim_classes,
+            list_animation_classes,
+            list_mobject_classes,
+            get_class_methods,
+            get_method_info,
+            get_direction_constants,
+        ],
+        output_key="manim_code",
+        description="Analyzes a physics question and produces working ManimCE animation code.",
+    )
+
+
+physics_manim_agent = make_physics_manim_agent()
