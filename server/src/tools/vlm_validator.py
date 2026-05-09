@@ -4,7 +4,9 @@ import json
 from google.adk.tools import ToolContext
 from google.genai import types, Client
 from src.tools.frame_extractor import extract_key_frames, save_frames_to_disk
-from src.utils import _PROJECT_ROOT
+from pathlib import Path
+
+_PROJECT_ROOT = str(Path(__file__).parent.parent.parent.resolve())
 
 def vlm_validate_video(tool_context: ToolContext) -> dict:
     """

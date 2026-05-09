@@ -69,6 +69,7 @@ async def _run_pipeline_loop(
                 "original_question_text": original_question_text,
                 "validator_feedback": previous_feedback,
                 "verified_manim_code": "",
+                "vlm_validation_result": "(not yet assessed — call vlm_validate_video first)",
             },
         )
 
@@ -215,6 +216,7 @@ async def _run_generation_pipeline_loop(
                 "original_question_text": original_question_text,
                 "validator_feedback": previous_feedback,
                 "verified_manim_code": "",
+                "vlm_validation_result": "(not yet assessed — call vlm_validate_video first)",
             },
         )
 
@@ -324,9 +326,9 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python main.py --question assets/question_example/question_1.png
-  python main.py --question "Sebuah balok 10 kg pada bidang miring 37°. Tentukan percepatannya."
-  python main.py --question question.txt --max-retries 5
+  python app.py --question assets/question_example/question_1.png
+  python app.py --question "Sebuah balok 10 kg pada bidang miring 37°. Tentukan percepatannya."
+  python app.py --question question.txt --max-retries 5
         """,
     )
     parser.add_argument(
