@@ -1,6 +1,9 @@
 from google.genai import types
 from google.adk.events import Event
 import os, json, re
+from pathlib import Path
+
+_PROJECT_ROOT = str(Path(__file__).parent.parent.resolve())
 
 _IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 _MIME_MAP = {
@@ -81,7 +84,15 @@ def _log_event(event: Event, agents_seen: set):
     
     part_types = []
     for p in event.content.parts:
-        if getattr(p, "text", None):
+        if getattr(p, "thought", False):
+            # Thinking part — print a preview to the terminal
+            thought_text = getattr(p, "text", "") or ""
+            if thought_text:
+                preview = thought_text[:500].replace("\n", " ")
+                if len(thought_text) > 500:
+                    preview += "..."
+                print(f"  [{author}] 💭 {preview}")
+        elif getattr(p, "text", None):
             part_types.append("text")
         elif getattr(p, "function_call", None):
             fc = p.function_call
@@ -92,14 +103,20 @@ def _log_event(event: Event, agents_seen: set):
         else:
             part_types.append("other")
 
-    text = getattr(event.content.parts[0], "text", None) or ""
+    # Find the first non-thought text part for the main log line
+    text = ""
+    for p in event.content.parts:
+        if not getattr(p, "thought", False):
+            text = getattr(p, "text", None) or ""
+            if text:
+                break
 
     if text:
         preview = text[:300].replace("\n", " ")
         if len(text) > 300:
             preview += "..."
         print(f"  [{author}] {preview}")
-    else:
+    elif part_types:
         print(f"  [{author}] (no text) parts={part_types}")
 
 def _log_event_no_content(event: Event, agents_seen: set):

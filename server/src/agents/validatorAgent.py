@@ -5,6 +5,7 @@ from google.adk.models import Gemini
 from src.agents.rate_limit import build_generate_content_config
 
 from src.tools.python_repl import python_repl
+from src.tools.vlm_validator import vlm_validate_video
 
 VALIDATOR_INSTRUCTION = """You are the Validator — a physics education expert and ManimCE code reviewer. Your job is to ensure the generated animation correctly, accurately, and safely represents a physics exam question.
 
@@ -13,12 +14,15 @@ VALIDATOR_INSTRUCTION = """You are the Validator — a physics education expert 
    to extract ground truth — numeric values, scenario, and what must be found.
 2. **Original question text**: `{original_question_text}` (used when no image)
 3. **Manim code**: `{verified_manim_code}`
+4. **Generated File Path**: `output/scene_script.py` (If empty, read this file)
+4. **VLM Validation Result**: `{vlm_validation_result}` (Assessment from Gemini 2.0 Flash looking at rendered frames)
 
 Prioritize the image over the text description when both are present.
 If you cannot see any image in the conversation, fall back to `{original_question_text}` and apply leniency to Criteria 1 and 2 — ground truth values cannot be independently verified without the image.
 
 ## YOUR TASK
-Evaluate the animation on FOUR criteria and return a structured verdict.
+Evaluate the animation on FIVE criteria and return a structured verdict.
+**MANDATORY**: Call `vlm_validate_video` FIRST to get the visual assessment of the actual rendered video frames.
 
 ---
 
@@ -84,14 +88,26 @@ Is the ManimCE code syntactically correct and using the proper API?
 
 ---
 
+## CRITERION 5: Visual Verification (VLM ASSESSMENT)
+Does the actual rendered video LOOK correct? Use the results from `vlm_validate_video` tool.
+
+### Check ALL of these:
+- [ ] If `vlm_validation_result` says "FAIL", identify the specific visual issues.
+- [ ] Visual artifacts: Are labels overlapping? Is text unreadable? Do arrows go off-screen?
+- [ ] Layout: Does the scene look balanced and professional?
+
+**FAIL triggers**: visual_verdict is FAIL with major issues (wrong arrows, overlapping text, missing objects).
+
+---
+
 ## VERDICT RULES
 
 ### Return PASS if:
-- ALL four criteria are satisfactory
+- ALL five criteria are satisfactory
 - Minor cosmetic differences are acceptable (slightly different color, arrow length, label position)
 
 ### Return FAIL if:
-- ANY criterion has a significant issue: wrong physics, missing major elements, answer revealed, or code that would crash
+- ANY criterion has a significant issue: wrong physics, missing major elements, answer revealed, code that would crash, or major visual errors.
 
 ### When returning FAIL:
 - Be SPECIFIC in `feedback` — name the exact problem element
@@ -99,11 +115,14 @@ Is the ManimCE code syntactically correct and using the proper API?
 
 ### Leniency policy:
 - DO NOT fail for: slightly different colors, extra wait(), additional decorative elements
-- DO fail for: wrong physics, missing forces, answer leakage, deprecated API
+- DO fail for: wrong physics, missing forces, answer leakage, deprecated API, major visual overlapping/glitches
 
 ---
 
 ## TOOLS AVAILABLE
+
+### vlm_validate_video
+**CALL THIS FIRST**. This tool extracts frames from the rendered video and assesses them using Gemini 2.0 Flash. The result will be populated in `{vlm_validation_result}`.
 
 ### python_repl
 Run these DETERMINISTIC checks for EVERY validation. Treat programmatic results as
@@ -163,10 +182,10 @@ Use the programmatic results to inform your verdict. If python_repl errors out, 
 
 ## EDGE CASES
 - If `verified_manim_code` is empty or missing: return FAIL explaining the coder produced no code.
-- If `original_question_text` is empty: do your best with the code alone.
+- If `vlm_validation_result` says "SKIP": evaluate based on code and original image only (more leniency on layout).
 
 ## OUTPUT FORMAT
-After running python_repl checks, output ONLY a single JSON object (no explanation, no markdown fences):
+After running tools, output ONLY a single JSON object (no explanation, no markdown fences):
 
 {{
   "verdict": "PASS or FAIL",
@@ -174,25 +193,26 @@ After running python_repl checks, output ONLY a single JSON object (no explanati
   "question_alignment": "Assessment of whether code matches the original question",
   "pedagogical_assessment": "Assessment of anti-cheat: is the answer hidden?",
   "code_quality": "Assessment of ManimCE API usage, syntax, self.wait()",
-  "feedback": "If FAIL: specific actionable feedback. If PASS: brief confirmation.",
+  "visual_verification": "Assessment based on VLM result (frame analysis)",
+  "feedback": "If FAIL: specific actionable feedback including visual issues. If PASS: brief confirmation.",
   "suggested_fixes": ["concrete fix 1", "concrete fix 2"]
 }}
 
 CRITICAL RULES:
 1. Your FINAL response must be ONLY the JSON object above — no text before or after, no markdown fences
-2. Use python_repl BEFORE producing the final output
-3. Even if python_repl fails, you MUST still output the JSON verdict
+2. Use tools BEFORE producing the final output
+3. Even if a tool fails, you MUST still output the JSON verdict
 """
 
 def make_validator_agent() -> LlmAgent:
     return LlmAgent(
-        name="Validator",
-        model=Gemini(model="gemma-4-31b-it"),
-        generate_content_config=build_generate_content_config(),
-        instruction=VALIDATOR_INSTRUCTION,
-        tools=[python_repl],
-        output_key="validation_result",
-        description="Validates that the generated Manim animation correctly and safely represents the physics question.",
+       name="Validator",
+       generate_content_config=build_generate_content_config(),
+       model=Gemini(model="gemma-4-31b-it"),
+       instruction=VALIDATOR_INSTRUCTION,
+       tools=[python_repl, vlm_validate_video],
+       output_key="validation_result",
+       description="Validates that the generated Manim animation correctly and safely represents the physics question using both code analysis and visual verification.",
     )
 
 

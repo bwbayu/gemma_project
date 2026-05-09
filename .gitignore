@@ -1,1 +1,13 @@
 .venv
+env/ 
+.env
+*.md
+.claude
+*__pycache__
+/output
+# /assets
+/agents
+/learning
+/mcp_servers
+/schemas
+/tools

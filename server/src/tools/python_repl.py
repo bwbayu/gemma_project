@@ -42,6 +42,7 @@ SAFE_GLOBALS = {
         "True": True,
         "False": False,
         "None": None,
+        "__import__": __import__,
     },
     "math": math,
     "np": np,
