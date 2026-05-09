@@ -326,9 +326,9 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python app.py --question assets/question_example/question_1.png
-  python app.py --question "Sebuah balok 10 kg pada bidang miring 37°. Tentukan percepatannya."
-  python app.py --question question.txt --max-retries 5
+  python -m src.app --question assets/question_example/question_1.png
+  python -m src.app --question "Sebuah balok 10 kg pada bidang miring 37°. Tentukan percepatannya."
+  python -m src.app --question question.txt --max-retries 5
         """,
     )
     parser.add_argument(
