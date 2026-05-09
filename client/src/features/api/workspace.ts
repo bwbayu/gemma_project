@@ -11,10 +11,3 @@ export async function createWorkspace(title: string, description: string): Promi
     body: JSON.stringify({ title, description }),
   })
 }
-
-export async function openWorkspace(formRef: string): Promise<Workspace> {
-  return apiRequest<Workspace>('/workspaces/open', {
-    method: 'POST',
-    body: JSON.stringify({ formRef }),
-  })
-}

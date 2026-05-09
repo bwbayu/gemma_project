@@ -510,6 +510,9 @@ export function DashboardPage() {
 
         <Card className="space-y-3">
           <p className="font-medium text-ink">Create New Animation</p>
+          <p className="text-sm text-slate">
+            Generation typically takes around 4-5 minutes per question.
+          </p>
 
           <div className="flex gap-2">
             <Button
