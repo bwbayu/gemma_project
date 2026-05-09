@@ -87,8 +87,13 @@ def create_workspace_service(title: str, description: str) -> dict:
 
     workspace_id = str(uuid.uuid4())
     # Form ID placeholder in stage 2 until real Forms create/open sync logic.
-    # TODO KHAIRI: integrate create_form
-    form_id = f"mock_form_{uuid.uuid4().hex[:12]}"
+    from src.tools.form_tools import create_form
+
+    form  = create_form(clean_title, clean_description)
+
+    # form_id = f"mock_form_{uuid.uuid4().hex[:12]}"
+    form_id = form["formId"]
+
     edit_url, responder_url = _build_form_urls(form_id)
     now = _now_iso()
     payload = {

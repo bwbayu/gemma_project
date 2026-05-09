@@ -9,6 +9,9 @@ from app.repositories.firestore.question_repo import get_question, update_questi
 from app.repositories.firestore.workspace_repo import get_workspace
 from app.services.job_service import enqueue_generation_job
 from app.utils.errors import AppError
+from pathlib import Path
+import os
+from urllib.parse import urlparse
 
 
 def _now_iso() -> str:
@@ -76,6 +79,7 @@ def _to_review_model(review: dict) -> dict:
         "validation": {
             "verdict": validation.get("verdict", "FAIL"),
             "summary": validation.get("summary", ""),
+            "local_video_path": validation.get("local_video_path", "")
         },
         "append": {
             "status": append.get("status", "not_started"),
@@ -96,10 +100,15 @@ def _get_question_or_404(question_id: str) -> dict:
         )
     return question
 
+def _get_filename(url: str) -> str:
+    ext = ".gif"
+    path_obj = Path(urlparse(url).path)
+    filename = path_obj.with_suffix(ext).name
+    return filename
 
 def _append_question_to_form(question: dict, review_result: dict) -> None:
-    # TODO KHAIRI: convert mp4->gif, upload gdrive, append ke existing form
-    from src.tools.form_tools import add_text_question, get_form
+    from src.tools.form_tools import get_form, add_image_question, upload_image_to_drive
+    from src.utils.mp42gif import mp4_to_gif_best_quality
 
     form_id = question.get("form_id")
     if not form_id:
@@ -115,36 +124,55 @@ def _append_question_to_form(question: dict, review_result: dict) -> None:
             details={"formId": form_id},
             status_code=400,
         )
+    
+    # convert video mp4 to Gif
+    _PROJECT_ROOT = str(Path(__file__).parent.parent.parent.resolve())
+    output_dir = os.path.join(_PROJECT_ROOT, "output/gif")
+    os.makedirs(output_dir, exist_ok=True)
+    gif_output_path = os.path.join(output_dir, _get_filename(review_result["validation"]["local_video_path"]))
 
-    source = review_result.get("source", {})
-    result = review_result.get("result", {})
-    input_type = source.get("input_type", "text")
-    stem = source.get("text") if input_type == "text" else question.get("label")
-    stem = (stem or question.get("label") or "Physics question").strip()
-    video_url = result.get("video_url")
+    # print(f"file_path {gif_output_path}")
+    mp4_to_gif_best_quality(review_result["validation"]["local_video_path"], gif_output_path)
 
-    prompt = f"{stem}\n\nObserve the animation before solving."
-    if video_url:
-        prompt = f"{prompt}\nAnimation: {video_url}"
+    # upload Gif to drive
+    drive_result = upload_image_to_drive(gif_output_path)
 
-    form = get_form(form_id)
-    items = form.get("items", []) if isinstance(form, dict) else []
-    next_index = len(items)
+    # add animation to existing form
+    add_image_question(form_id=form_id, 
+                       question_title="Watch the animation to answer the question. Provide a step-by-step solution", 
+                       drive_file_id=drive_result.get("driveFileId", ""),
+                       alt_text="Physics animation",
+                       required=True)
 
-    add_text_question(
-        form_id=form_id,
-        question_title=prompt[:500],
-        required=True,
-        paragraph=False,
-        index=next_index,
-    )
-    add_text_question(
-        form_id=form_id,
-        question_title="Show your working / solution steps",
-        required=False,
-        paragraph=True,
-        index=next_index + 1,
-    )
+    # source = review_result.get("source", {})
+    # result = review_result.get("result", {})
+    # input_type = source.get("input_type", "text")
+    # stem = source.get("text") if input_type == "text" else question.get("label")
+    # stem = (stem or question.get("label") or "Physics question").strip()
+    # video_url = result.get("video_url")
+
+    # prompt = f"{stem}\n\nObserve the animation before solving."
+    # if video_url:
+    #     prompt = f"{prompt}\nAnimation: {video_url}"
+
+    # form = get_form(form_id)
+    # items = form.get("items", []) if isinstance(form, dict) else []
+    # next_index = len(items)
+
+    # add_text_question(
+    #     form_id=form_id,
+    #     question_title=prompt[:500],
+    #     required=True,
+    #     paragraph=False,
+    #     index=next_index,
+    # )
+    # add_text_question(
+    #     form_id=form_id,
+    #     question_title="Show your working / solution steps",
+    #     required=False,
+    #     paragraph=True,
+    #     index=next_index + 1,
+    # )
 
 
 def get_review_service(question_id: str) -> dict:
@@ -161,7 +189,6 @@ def get_review_service(question_id: str) -> dict:
 
 
 def approve_question_service(question_id: str) -> dict:
-    # TODO KHAIRI
     question = _get_question_or_404(question_id)
     workspace = get_workspace(question["workspace_id"])
     if not workspace:

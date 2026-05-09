@@ -40,7 +40,6 @@ def get_question_review(question_id: str):
 
 @router.post("/questions/{question_id}/approve", response_model=QuestionDecisionResponse)
 def approve_question(question_id: str):
-    # TODO KHAIRI
     return approve_question_service(question_id)
 
 

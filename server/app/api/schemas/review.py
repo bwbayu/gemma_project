@@ -35,6 +35,7 @@ class ReviewSummaryModel(_ApiModel):
 class ReviewValidationModel(_ApiModel):
     verdict: Literal["PASS", "FAIL"]
     summary: str
+    local_video_path: str
 
 
 class ReviewAppendModel(_ApiModel):

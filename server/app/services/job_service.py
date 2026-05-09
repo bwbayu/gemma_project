@@ -101,6 +101,7 @@ async def _run_generation_job(job_id: str) -> None:
             "validation": {
                 "verdict": run_result.verdict,
                 "summary": run_result.summary,
+                "local_video_path": run_result.video_local_path
             },
             "append": {
                 "status": "not_started",
