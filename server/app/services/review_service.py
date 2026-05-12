@@ -15,10 +15,12 @@ from urllib.parse import urlparse
 
 
 def _now_iso() -> str:
+    """Return the current UTC timestamp as an ISO 8601 string."""
     return datetime.now(timezone.utc).isoformat()
 
 
 def _to_question_item_model(entity: dict) -> dict:
+    """Reshape a Firestore question document into the API question item shape."""
     return {
         "questionItemId": entity["question_id"],
         "label": entity["label"],
@@ -29,6 +31,7 @@ def _to_question_item_model(entity: dict) -> dict:
 
 
 def _to_generation_job_model(entity: dict) -> dict:
+    """Reshape a Firestore job document into the API job response shape."""
     return {
         "jobId": entity["job_id"],
         "workspaceId": entity["workspace_id"],
@@ -46,6 +49,7 @@ def _to_generation_job_model(entity: dict) -> dict:
 
 
 def _to_workspace_links_model(workspace: dict) -> dict:
+    """Extract form edit/responder URLs from a workspace document."""
     return {
         "workspaceId": workspace["workspace_id"],
         "formEditUrl": workspace["form_edit_url"],
@@ -54,6 +58,7 @@ def _to_workspace_links_model(workspace: dict) -> dict:
 
 
 def _to_review_model(review: dict) -> dict:
+    """Reshape the nested review dict stored in Firestore into the API response schema."""
     source = review.get("source", {})
     result = review.get("result", {})
     summary = review.get("summary", {})
@@ -90,6 +95,7 @@ def _to_review_model(review: dict) -> dict:
 
 
 def _get_question_or_404(question_id: str) -> dict:
+    """Fetch a question document by ID, raising a 404 AppError if it does not exist."""
     question = get_question(question_id)
     if not question:
         raise AppError(
@@ -101,12 +107,14 @@ def _get_question_or_404(question_id: str) -> dict:
     return question
 
 def _get_filename(url: str) -> str:
+    """Extract the filename from a URL path and force its extension to .gif."""
     ext = ".gif"
     path_obj = Path(urlparse(url).path)
     filename = path_obj.with_suffix(ext).name
     return filename
 
 def _append_question_to_form(question: dict, review_result: dict) -> None:
+    """Convert the generated video to GIF, upload it to Drive, and append an image question to the Google Form."""
     from src.tools.form_tools import get_form, add_image_question, upload_image_to_drive
     from src.utils.mp42gif import mp4_to_gif_best_quality
 
@@ -176,6 +184,7 @@ def _append_question_to_form(question: dict, review_result: dict) -> None:
 
 
 def get_review_service(question_id: str) -> dict:
+    """Return the review payload for a question, raising 404 if generation has not completed yet."""
     question = _get_question_or_404(question_id)
     review_result = question.get("review_result")
     if not review_result:
@@ -189,6 +198,7 @@ def get_review_service(question_id: str) -> dict:
 
 
 def approve_question_service(question_id: str) -> dict:
+    """Append the question's animation to the linked Google Form and update the question status."""
     question = _get_question_or_404(question_id)
     workspace = get_workspace(question["workspace_id"])
     if not workspace:
@@ -257,6 +267,7 @@ def approve_question_service(question_id: str) -> dict:
 
 
 def discard_question_service(question_id: str) -> dict:
+    """Mark the question as discarded and reset its append status."""
     question = _get_question_or_404(question_id)
     workspace = get_workspace(question["workspace_id"])
     if not workspace:
@@ -307,6 +318,7 @@ def discard_question_service(question_id: str) -> dict:
 
 
 def regenerate_question_service(question_id: str) -> dict:
+    """Reset the question to a pending state and queue a new generation job."""
     settings = get_settings()
     question = _get_question_or_404(question_id)
     workspace = get_workspace(question["workspace_id"])

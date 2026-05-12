@@ -25,10 +25,12 @@ import {
 } from '../features/api/workspace'
 import type { GenerationJob, JobStage, QuestionItem, ReviewResult, Workspace } from '../features/mock/types'
 
+/** Format an ISO timestamp into a locale-aware date/time string. */
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleString()
 }
 
+/** Map a question status to the corresponding Badge tone. */
 function getStatusTone(status: QuestionItem['status']): 'neutral' | 'success' | 'warning' {
   if (status === 'added') {
     return 'success'
@@ -39,12 +41,14 @@ function getStatusTone(status: QuestionItem['status']): 'neutral' | 'success' | 
   return 'neutral'
 }
 
+/** Convert a snake_case job stage identifier to a title-cased display label. */
 function getStageLabel(stage: JobStage): string {
   return stage
     .replaceAll('_', ' ')
     .replace(/\b\w/g, (char) => char.toUpperCase())
 }
 
+/** Return a human-readable description of the question source (text excerpt or image filename). */
 function getReviewSourceText(reviewResult: ReviewResult): string {
   if (reviewResult.source.inputType === 'text') {
     return reviewResult.source.text ?? ''
@@ -57,6 +61,7 @@ function getReviewSourceText(reviewResult: ReviewResult): string {
   return 'Uploaded image source'
 }
 
+/** Resolve a promise after the given number of milliseconds, used for polling delays. */
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => {
     window.setTimeout(resolve, ms)
@@ -65,6 +70,7 @@ function wait(ms: number): Promise<void> {
 
 const POLL_INTERVAL_MS = 2000
 
+/** Main teacher dashboard: workspace setup, question intake, job progress, and review/decision flow. */
 export function DashboardPage() {
   const navigate = useNavigate()
   const [workspace, setWorkspace] = useState<Workspace | null>(null)
@@ -94,6 +100,7 @@ export function DashboardPage() {
   useEffect(() => {
     let mounted = true
 
+    /** Load the active workspace and its questions on mount, setting load error on failure. */
     async function hydrateWorkspace() {
       try {
         const found = await getActiveWorkspace()
@@ -133,11 +140,13 @@ export function DashboardPage() {
     }
   }, [])
 
+  /** Re-fetch the question list for a workspace and update local state. */
   async function refreshQuestions(targetWorkspaceId: string): Promise<void> {
     const list = await listWorkspaceQuestions(targetWorkspaceId)
     setQuestionItems(list)
   }
 
+  /** Poll the job endpoint until it reaches a terminal state, then refresh the question list. */
   async function trackJob(jobId: string, workspaceId: string): Promise<void> {
     const token = Date.now()
     pollTokenRef.current = token
@@ -161,6 +170,7 @@ export function DashboardPage() {
     }
   }
 
+  /** Handle the create-workspace form submission, validating inputs before calling the API. */
   async function handleCreateWorkspace(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setCreateError('')
@@ -198,6 +208,7 @@ export function DashboardPage() {
     }
   }
 
+  /** Submit an image or text question and start tracking the resulting generation job. */
   async function handleStartGeneration(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!workspace) {
@@ -248,6 +259,7 @@ export function DashboardPage() {
     }
   }
 
+  /** Load the review result for a specific question and display it in the review panel. */
   async function handleOpenReview(questionItemId: string): Promise<void> {
     setSubmitError('')
     setCopyMessage('')
@@ -267,6 +279,7 @@ export function DashboardPage() {
     }
   }
 
+  /** Approve the current review result, appending the animation to the Google Form. */
   async function handleApprove(): Promise<void> {
     if (!reviewResult || !workspace) {
       return
@@ -296,6 +309,7 @@ export function DashboardPage() {
     }
   }
 
+  /** Trigger a new generation job for the current question and begin tracking it. */
   async function handleRegenerate(): Promise<void> {
     if (!reviewResult || !workspace) {
       return
@@ -327,6 +341,7 @@ export function DashboardPage() {
     }
   }
 
+  /** Discard the current review result and remove the question from the active list. */
   async function handleDiscard(): Promise<void> {
     if (!reviewResult || !workspace) {
       return
@@ -352,6 +367,7 @@ export function DashboardPage() {
     }
   }
 
+  /** Copy the form responder URL to the clipboard, preferring the latest approved link. */
   async function handleCopyResponderLink(): Promise<void> {
     const responderUrl = approvedFormLinks?.formResponderUrl || workspace?.formRef.formResponderUrl
     if (!responderUrl) {
@@ -366,6 +382,7 @@ export function DashboardPage() {
     }
   }
 
+  /** Open the Google Form editor in a new tab, preferring the latest approved link. */
   function openFormLink(): void {
     const editUrl = approvedFormLinks?.formEditUrl || workspace?.formRef.formEditUrl
     if (!editUrl) {

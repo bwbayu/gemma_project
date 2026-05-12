@@ -15,10 +15,12 @@ _JOB_TASKS: set[asyncio.Task] = set()
 
 
 def _now_iso() -> str:
+    """Return the current UTC timestamp as an ISO 8601 string."""
     return datetime.now(timezone.utc).isoformat()
 
 
 def _to_job_model(entity: dict) -> dict:
+    """Reshape a Firestore job document into the API job response shape."""
     return {
         "jobId": entity["job_id"],
         "workspaceId": entity["workspace_id"],
@@ -36,6 +38,7 @@ def _to_job_model(entity: dict) -> dict:
 
 
 def get_job_service(job_id: str) -> dict:
+    """Fetch a job by ID and return it formatted for the API, raising 404 if not found."""
     entity = get_job(job_id)
     if not entity:
         raise AppError(
@@ -48,11 +51,13 @@ def get_job_service(job_id: str) -> dict:
 
 
 def _patch_job(job_id: str, **fields) -> None:
+    """Merge the given fields into a job document, automatically updating the timestamp."""
     payload = {"updated_at": _now_iso(), **fields}
     update_job(job_id, payload)
 
 
 async def _run_generation_job(job_id: str) -> None:
+    """Drive the full generation pipeline for a job, updating stage/status in Firestore along the way."""
     job = get_job(job_id)
     if not job:
         return
@@ -160,6 +165,7 @@ async def _run_generation_job(job_id: str) -> None:
 
 
 def enqueue_generation_job(job_id: str) -> None:
+    """Schedule the generation pipeline as a background asyncio task."""
     task = asyncio.create_task(_run_generation_job(job_id))
     _JOB_TASKS.add(task)
     task.add_done_callback(_JOB_TASKS.discard)

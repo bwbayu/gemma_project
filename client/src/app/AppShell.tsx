@@ -8,6 +8,7 @@ const navItems = [
   { to: '/help', label: 'Help', icon: BookOpen, end: false },
 ]
 
+/** Top-level layout shell with a branded header, side navigation, and a main content outlet. */
 export function AppShell() {
   return (
     <div className="flex min-h-screen flex-col bg-canvas text-ink">

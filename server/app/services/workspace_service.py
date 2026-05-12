@@ -14,15 +14,18 @@ from app.repositories.firestore.workspace_repo import (
 from app.utils.errors import AppError
 
 def _now_iso() -> str:
+    """Return the current UTC timestamp as an ISO 8601 string."""
     return datetime.now(timezone.utc).isoformat()
 
 
 def _build_form_urls(form_id: str) -> tuple[str, str]:
+    """Build the Google Form edit and responder URLs from a form ID."""
     edit_url = f"https://docs.google.com/forms/d/{form_id}/edit"
     responder_url = f"https://docs.google.com/forms/d/{form_id}/viewform"
     return edit_url, responder_url
 
 def _to_workspace_response(entity: dict) -> dict:
+    """Reshape a Firestore workspace document into the API response shape."""
     return {
         "workspaceId": entity["workspace_id"],
         "formRef": {
@@ -38,6 +41,7 @@ def _to_workspace_response(entity: dict) -> dict:
 
 
 def create_workspace_service(title: str, description: str) -> dict:
+    """Create a Google Form, persist the workspace in Firestore, and set it as active."""
     clean_title = title.strip()
     clean_description = description.strip()
     if not clean_title:
@@ -82,6 +86,7 @@ def create_workspace_service(title: str, description: str) -> dict:
 
 
 def get_active_workspace_service() -> dict | None:
+    """Look up the active workspace ID from app state and return the workspace document, or None."""
     workspace_id = get_active_workspace_id()
     if not workspace_id:
         return None
@@ -92,6 +97,7 @@ def get_active_workspace_service() -> dict | None:
 
 
 def get_workspace_links_service(workspace_id: str) -> dict:
+    """Return the form edit and responder URLs for a workspace, raising 404 if not found."""
     entity = get_workspace(workspace_id)
     if not entity:
         raise AppError(

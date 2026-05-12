@@ -14,6 +14,7 @@ const toneStyles: Record<BadgeTone, string> = {
   warning: 'bg-[#fcead8] text-[#875020]',
 }
 
+/** Small pill label with a semantic tone: neutral (grey), success (green), or warning (amber). */
 export function Badge({ children, className, tone = 'neutral' }: BadgeProps) {
   return (
     <span

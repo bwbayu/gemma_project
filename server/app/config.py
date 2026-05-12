@@ -20,4 +20,5 @@ class Settings(BaseSettings):
 
 
 def get_settings() -> Settings:
+    """Load and return application settings from environment variables or the .env file."""
     return Settings()

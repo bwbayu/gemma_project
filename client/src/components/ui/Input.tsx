@@ -3,6 +3,7 @@ import { cn } from '../../lib/cn'
 
 type InputProps = InputHTMLAttributes<HTMLInputElement>
 
+/** Styled text input that forwards all native input attributes and merges className. */
 export function Input({ className, ...props }: InputProps) {
   return (
     <input

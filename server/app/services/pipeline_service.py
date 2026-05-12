@@ -10,6 +10,7 @@ from app.integrations.legacy_pipeline_adapter import (
 
 
 async def run_pipeline_for_question(question_entity: dict) -> PipelineRunResult:
+    """Dispatch the question to the correct pipeline mode (mock, legacy generation, or full legacy)."""
     settings = get_settings()
     mode = settings.pipeline_mode.strip().lower()
 

@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 def create_app() -> FastAPI:
+    """Build and configure the FastAPI application with middleware, routers, and exception handlers."""
     settings = get_settings()
     app = FastAPI(
         title="PhysicsAnimator Backend API",
@@ -38,6 +39,7 @@ def create_app() -> FastAPI:
 
     @app.exception_handler(AppError)
     async def app_error_handler(_: Request, exc: AppError) -> JSONResponse:
+        """Return a structured JSON error response for known application errors."""
         body = ErrorEnvelope(
             error={
                 "code": exc.code,
@@ -49,6 +51,7 @@ def create_app() -> FastAPI:
 
     @app.exception_handler(RequestValidationError)
     async def validation_error_handler(_: Request, exc: RequestValidationError) -> JSONResponse:
+        """Return a 422 response with Pydantic validation error details."""
         body = ErrorEnvelope(
             error={
                 "code": "REQUEST_VALIDATION_ERROR",
@@ -60,6 +63,7 @@ def create_app() -> FastAPI:
 
     @app.exception_handler(Exception)
     async def unhandled_error_handler(_: Request, exc: Exception) -> JSONResponse:
+        """Catch-all handler that logs unexpected exceptions and returns a 500 response."""
         logger.exception("Unhandled API error")
         body = ErrorEnvelope(
             error={
@@ -72,6 +76,7 @@ def create_app() -> FastAPI:
 
     @app.on_event("startup")
     async def _startup() -> None:
+        """Initialize GCP infrastructure clients on server startup."""
         initialize_infra_clients()
 
     api_router = APIRouter(prefix=settings.api_prefix)

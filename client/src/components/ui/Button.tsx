@@ -18,6 +18,7 @@ const styles: Record<ButtonVariant, string> = {
     'bg-transparent text-slate hover:bg-[#e9eff4] focus-visible:ring-ink/15',
 }
 
+/** Themed button supporting primary (filled), secondary (outlined), and ghost (transparent) variants. */
 export function Button({
   children,
   className,

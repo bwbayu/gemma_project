@@ -19,6 +19,7 @@ const samplePrompts = [
   'Two masses connected by a rope over a pulley, m1 = 3 kg and m2 = 5 kg. Determine direction of motion and acceleration.',
 ]
 
+/** Help page with a quick-start guide, input quality tips, and sample prompts for teachers. */
 export function HelpPage() {
   return (
     <section className="space-y-5">

@@ -8,14 +8,17 @@ WORKSPACES_COLLECTION = "workspaces"
 
 
 def create_workspace(workspace_id: str, payload: dict) -> None:
+    """Write a new workspace document to Firestore."""
     get_collection(WORKSPACES_COLLECTION).document(workspace_id).set(payload)
 
 
 def update_workspace(workspace_id: str, payload: dict) -> None:
+    """Merge the given fields into an existing workspace document."""
     get_collection(WORKSPACES_COLLECTION).document(workspace_id).set(payload, merge=True)
 
 
 def get_workspace(workspace_id: str) -> dict | None:
+    """Fetch a workspace document by ID, returning None if it does not exist."""
     snapshot = get_collection(WORKSPACES_COLLECTION).document(workspace_id).get()
     if not snapshot.exists:
         return None
@@ -25,6 +28,7 @@ def get_workspace(workspace_id: str) -> dict | None:
 
 
 def find_workspace_by_form_id(form_id: str) -> dict | None:
+    """Find the first workspace linked to a given Google Form ID, or None."""
     docs = (
         get_collection(WORKSPACES_COLLECTION)
         .where(filter=firestore.FieldFilter("form_id", "==", form_id))

@@ -45,10 +45,12 @@ Manim Function Tools
 """
 
 def _ok(data: dict) -> dict:
+    """Wrap data in a standard success response envelope."""
     return {"status": "success", "data": data, "error": None}
 
 
 def _err(message: str, data: dict | None = None) -> dict:
+    """Wrap a message in a standard error response envelope."""
     return {"status": "error", "data": data or {}, "error": message}
 
 

@@ -10,6 +10,7 @@ router = APIRouter(tags=["health"])
 
 @router.get("/healthz", response_model=HealthResponse)
 def healthz() -> HealthResponse:
+    """Return server health status and connected infrastructure identifiers."""
     clients = get_infra_clients()
     return HealthResponse(
         status="ok",

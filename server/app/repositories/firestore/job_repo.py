@@ -8,14 +8,17 @@ JOBS_COLLECTION = "jobs"
 
 
 def create_job(job_id: str, payload: dict) -> None:
+    """Write a new job document to Firestore."""
     get_collection(JOBS_COLLECTION).document(job_id).set(payload)
 
 
 def update_job(job_id: str, payload: dict) -> None:
+    """Merge the given fields into an existing job document."""
     get_collection(JOBS_COLLECTION).document(job_id).set(payload, merge=True)
 
 
 def get_job(job_id: str) -> dict | None:
+    """Fetch a job document by ID, returning None if it does not exist."""
     snapshot = get_collection(JOBS_COLLECTION).document(job_id).get()
     if not snapshot.exists:
         return None
@@ -25,6 +28,7 @@ def get_job(job_id: str) -> dict | None:
 
 
 def get_latest_job_by_question(question_id: str) -> dict | None:
+    """Return the most recently created job for a question, or None if no jobs exist."""
     docs = (
         get_collection(JOBS_COLLECTION)
         .where(filter=firestore.FieldFilter("question_id", "==", question_id))

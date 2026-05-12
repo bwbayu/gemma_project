@@ -29,10 +29,12 @@ _MIME_MAP = {
 
 
 def _now_iso() -> str:
+    """Return the current UTC timestamp as an ISO 8601 string."""
     return datetime.now(timezone.utc).isoformat()
 
 
 def _to_question_item_model(entity: dict) -> dict:
+    """Reshape a Firestore question document into the API response shape."""
     return {
         "questionItemId": entity["question_id"],
         "label": entity["label"],
@@ -43,6 +45,7 @@ def _to_question_item_model(entity: dict) -> dict:
 
 
 def _to_generation_job_model(entity: dict) -> dict:
+    """Reshape a Firestore job document into the API job response shape."""
     return {
         "jobId": entity["job_id"],
         "workspaceId": entity["workspace_id"],
@@ -60,6 +63,7 @@ def _to_generation_job_model(entity: dict) -> dict:
 
 
 def list_workspace_questions_service(workspace_id: str) -> list[dict]:
+    """Verify the workspace exists and return its questions formatted for the API."""
     if not get_workspace(workspace_id):
         raise AppError(
             code="WORKSPACE_NOT_FOUND",
@@ -71,6 +75,7 @@ def list_workspace_questions_service(workspace_id: str) -> list[dict]:
 
 
 def _validate_input(text: str | None, image: UploadFile | None) -> None:
+    """Raise an error if the request provides both inputs or neither."""
     has_text = bool(text and text.strip())
     has_image = image is not None and bool(image.filename)
     if has_text == has_image:
@@ -82,6 +87,7 @@ def _validate_input(text: str | None, image: UploadFile | None) -> None:
 
 
 def _persist_local_image(question_id: str, ext: str, data: bytes) -> str:
+    """Save raw image bytes to a local temp directory and return the file path."""
     base = Path(gettempdir()) / "physicsanimator" / "question_sources"
     base.mkdir(parents=True, exist_ok=True)
     local_path = base / f"{question_id}{ext}"
@@ -90,6 +96,7 @@ def _persist_local_image(question_id: str, ext: str, data: bytes) -> str:
 
 
 async def create_question_service(workspace_id: str, text: str | None, image: UploadFile | None) -> dict:
+    """Validate input, persist the question and source asset, create a job record, and enqueue generation."""
     settings = get_settings()
     workspace = get_workspace(workspace_id)
     if not workspace:

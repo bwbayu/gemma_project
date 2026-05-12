@@ -13,6 +13,7 @@ WHITELIST_DOMAIN = [
 ]
 
 def _norm_host(url: str) -> str:
+    """Extract and normalize the hostname from a URL, stripping the www. prefix."""
     host = (urllib.parse.urlparse(url).netloc or "").lower()
     if host.startswith("www."):
         host = host[4:]
@@ -20,6 +21,7 @@ def _norm_host(url: str) -> str:
 
 
 def google_search(query: str, limit: int = 2) -> dict:
+    """Search each whitelisted domain via Google CSE, then fetch full page content through Jina AI."""
     # check cse key and cx
     cse_key = os.getenv("GOOGLE_CSE_API_KEY", "")
     cse_cx = os.getenv("GOOGLE_CSE_CX", "")

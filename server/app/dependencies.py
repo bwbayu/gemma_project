@@ -23,6 +23,7 @@ _clients: InfraClients | None = None
 
 
 def _validate_env(settings: Settings) -> None:
+    """Resolve and validate the GOOGLE_APPLICATION_CREDENTIALS path, then set it in the environment."""
     creds_path = Path(settings.google_application_credentials)
     if not creds_path.is_absolute():
         creds_path = Path.cwd() / creds_path
@@ -38,6 +39,7 @@ def _validate_env(settings: Settings) -> None:
 
 
 def _build_clients(settings: Settings) -> InfraClients:
+    """Instantiate Firestore and GCS clients from the provided settings."""
     # Explicitly target the configured Firestore database (non-default supported).
     firestore_client = firestore.Client(
         project=settings.google_cloud_project,
@@ -54,6 +56,7 @@ def _build_clients(settings: Settings) -> InfraClients:
 
 
 def initialize_infra_clients() -> InfraClients:
+    """Validate credentials, build GCP clients, and cache them in the module-level singleton."""
     global _clients
     if _clients is not None:
         return _clients
@@ -65,6 +68,7 @@ def initialize_infra_clients() -> InfraClients:
 
 
 def get_infra_clients() -> InfraClients:
+    """Return the cached infrastructure clients, initializing them on first call."""
     if _clients is None:
         return initialize_infra_clients()
     return _clients
