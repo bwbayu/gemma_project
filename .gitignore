@@ -2,3 +2,5 @@
 ./agents/
 ./github/
 *.md
+!README.md
+!DEPLOYMENT.md

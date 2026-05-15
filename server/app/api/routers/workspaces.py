@@ -1,3 +1,5 @@
+"""Workspace endpoints: list/create/activate workspaces and fetch their Google Form links."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, status

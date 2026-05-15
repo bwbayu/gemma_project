@@ -1,3 +1,5 @@
+"""Question endpoints: submit a question (text or image), fetch its review, and approve/regenerate/discard it."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, File, Form, UploadFile, status

@@ -1,3 +1,5 @@
+"""MP4 → GIF using ffmpeg's two-pass palette workflow for high quality at modest size."""
+
 import os
 import subprocess
 import tempfile

@@ -1,3 +1,5 @@
+"""Runtime app-state document: the single active workspace pointer (single-tenant; not per-user)."""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone

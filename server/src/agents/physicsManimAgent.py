@@ -1,4 +1,8 @@
-# src/agents/physicsManimAgent.py
+"""Coder agent: turns a physics question into Manim code and renders it.
+
+Writes `manim_code` to state and, after calling `execute_manim_code`, populates
+`video_path` with the rendered MP4 location.
+"""
 
 from google.adk.agents import LlmAgent
 from google.adk.models import Gemini

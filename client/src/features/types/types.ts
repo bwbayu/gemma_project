@@ -1,3 +1,5 @@
+/** Shared domain types: question/job state machines and workspace/review payload shapes. */
+
 export type QuestionStatus = 'generating' | 'generated' | 'added' | 'failed' | 'discarded'
 
 export type JobStage =

@@ -1,3 +1,9 @@
+"""Application settings loaded from environment / .env via Pydantic.
+
+`pipeline_mode` accepts: `legacy_generation` (Coder→Validator), `legacy_full_fallback`
+(Coder→Validator→Form via the ADK pipeline), or `mock` (skip generation entirely).
+"""
+
 from __future__ import annotations
 
 from pydantic import Field

@@ -1,5 +1,5 @@
 import { apiRequest } from './http'
-import type { GenerationJob, QuestionItem, ReviewResult } from '../mock/types'
+import type { GenerationJob, QuestionItem, ReviewResult } from '../types/types'
 
 export interface FormLinks {
   workspaceId: string

@@ -1,3 +1,5 @@
+"""Workspace lifecycle: create the backing Google Form, list/activate workspaces, and surface their share links."""
+
 from __future__ import annotations
 
 import logging

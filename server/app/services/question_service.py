@@ -1,3 +1,5 @@
+"""Question intake: validate user input, upload the source asset, persist the record, queue a job."""
+
 from __future__ import annotations
 
 import uuid
@@ -95,6 +97,8 @@ def _validate_input(text: str | None, image: UploadFile | None) -> None:
 
 def _persist_local_image(question_id: str, ext: str, data: bytes) -> str:
     """Save raw image bytes to a local temp directory and return the file path."""
+    # The legacy pipeline reads the source image from a filesystem path, not from GCS,
+    # so we keep a local copy in addition to the GCS upload.
     base = Path(gettempdir()) / "physicsanimator" / "question_sources"
     base.mkdir(parents=True, exist_ok=True)
     local_path = base / f"{question_id}{ext}"

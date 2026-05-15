@@ -1,3 +1,5 @@
+"""Google Custom Search restricted to a domain whitelist; full-page content fetched via Jina AI."""
+
 import os
 import urllib.parse
 

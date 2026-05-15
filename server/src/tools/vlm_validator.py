@@ -1,4 +1,5 @@
-# src/tools/vlm_validator.py
+"""VLM visual check: sample frames from the rendered video and ask Gemini for a structured visual verdict."""
+
 import os
 import json
 from google.adk.tools import ToolContext
@@ -23,7 +24,9 @@ def vlm_validate_video(tool_context: ToolContext) -> dict:
             "reason": f"Video file not found at {video_path}. Rendering might have failed."
         }
 
-    # 1. Extract frames
+    # 1. Extract frames. Sampling 3 frames at ~5/50/90% of the video avoids the
+    # all-black opening and trailing frames Manim produces and keeps the VLM
+    # request to a single Gemini call.
     frames_bytes = extract_key_frames(video_path, n_frames=3)
     if not frames_bytes:
         return {

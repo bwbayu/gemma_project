@@ -1,3 +1,8 @@
+"""Firestore client + collection helpers.
+
+The app uses four collections: `workspaces`, `questions`, `jobs`, `app_state`.
+"""
+
 from __future__ import annotations
 
 from google.cloud.firestore import Client

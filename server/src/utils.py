@@ -1,3 +1,10 @@
+"""Shared helpers for the ADK pipeline.
+
+Includes message construction, event logging, and JSON-from-LLM-output extraction
+that tries three strategies in order (direct parse → markdown-fence strip →
+brace-depth scan) before giving up.
+"""
+
 from google.genai import types
 from google.adk.events import Event
 import os, json, re

@@ -1,3 +1,5 @@
+"""Shared `AppError` exception type used by services and surfaced by the FastAPI exception handler."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

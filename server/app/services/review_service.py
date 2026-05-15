@@ -1,3 +1,5 @@
+"""Review-and-decide flow: surface the review payload, approve/discard/regenerate, and handle GIF/Form append."""
+
 from __future__ import annotations
 
 import logging
@@ -125,6 +127,9 @@ def _gcs_object_from_url(public_url: str | None) -> str | None:
 
 def _retry_gif_pipeline(question: dict, review_result: dict) -> str:
     """Download the MP4 from GCS, convert to GIF, upload to GCS + Drive, persist new IDs to Firestore, return drive file id."""
+    # Fallback for the case where the eager GIF conversion in the generation job
+    # failed (or the job finished without ffmpeg available). At approve time the
+    # MP4 is guaranteed to be on GCS, so we can always re-run the conversion here.
     from src.tools.form_tools import upload_image_to_drive
     from src.utils.mp42gif import mp4_to_gif_best_quality
 

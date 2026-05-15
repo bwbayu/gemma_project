@@ -16,3 +16,4 @@ rate_limit*.log
 token.json
 asas-demo*.json
 palette.png
+!README.md

@@ -1,5 +1,5 @@
 import { apiRequest } from './http'
-import type { GenerationJob } from '../mock/types'
+import type { GenerationJob } from '../types/types'
 
 /** Fetch the current state of a generation job by its ID. */
 export async function getJob(jobId: string): Promise<GenerationJob> {

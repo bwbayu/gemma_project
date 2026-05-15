@@ -1,3 +1,12 @@
+/**
+ * Teacher dashboard page.
+ *
+ * Owns the full workflow in a single component: pick / create a workspace,
+ * submit a question (text or image), poll the resulting generation job until
+ * it is terminal, surface the review payload, and let the teacher approve,
+ * regenerate, or discard.
+ */
+
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -26,7 +35,7 @@ import {
   getActiveWorkspace,
   listWorkspaces,
 } from '../features/api/workspace'
-import type { GenerationJob, JobStage, QuestionItem, ReviewResult, Workspace } from '../features/mock/types'
+import type { GenerationJob, JobStage, QuestionItem, ReviewResult, Workspace } from '../features/types/types'
 
 /** Format an ISO timestamp into a locale-aware date/time string. */
 function formatDate(iso: string): string {
@@ -103,6 +112,9 @@ export function DashboardPage() {
   const reviewCardRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
+    // `mounted` guards against setState after unmount: the workspace list and
+    // active workspace load in parallel and the second await can resolve after
+    // the component is already gone (e.g. fast navigation).
     let mounted = true
 
     /** Load the active workspace and its questions on mount, setting load error on failure. */
@@ -147,6 +159,9 @@ export function DashboardPage() {
     if (!reviewResult) {
       return
     }
+    // Wait one animation frame so the review card has actually rendered before
+    // we ask it to scroll into view — scrolling synchronously with the state
+    // change targets the old layout.
     const handle = requestAnimationFrame(() => {
       reviewCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
     })
@@ -206,6 +221,9 @@ export function DashboardPage() {
 
   /** Poll the job endpoint until it reaches a terminal state, then refresh the question list. */
   async function trackJob(jobId: string, workspaceId: string): Promise<void> {
+    // `pollTokenRef` is bumped on workspace switch (and on unmount). An older
+    // in-flight poll notices its token no longer matches and stops — preventing
+    // results for the previous workspace from overwriting the new one's state.
     const token = Date.now()
     pollTokenRef.current = token
 
@@ -331,6 +349,8 @@ export function DashboardPage() {
       setReviewResult(review)
       setSubmitSuccess('Review payload loaded.')
     } catch (error) {
+      // The backend signals "still rendering" with this code; surface it as a
+      // polling message instead of a generic error so the teacher knows to wait.
       if (error instanceof ApiError && error.code === 'REVIEW_NOT_READY') {
         setSubmitSuccess('Review is still generating. Please check again shortly.')
       } else if (error instanceof ApiError) {

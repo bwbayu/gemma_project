@@ -1,3 +1,10 @@
+"""CLI + programmatic entrypoint for the ADK pipeline.
+
+Runs `pipeline` (Coder→Validator→Form) or `generation_pipeline` (Coder→Validator)
+with retry-on-FAIL: each retry injects the validator's feedback into the next
+attempt so the Coder can address the specific issue.
+"""
+
 import sys, os
 # Reconfigure stdout/stderr to UTF-8 on Windows where the default console
 # encoding (cp1252) cannot represent Unicode box-drawing chars and em dashes.
@@ -60,6 +67,9 @@ async def _run_pipeline_loop(
         attempt += 1
         _print_separator(f"Attempt {attempt}/{max_retries}")
 
+        # `rl_retry` is folded into the session id so a 429-driven retry of the
+        # same attempt gets a fresh ADK session — reusing the previous id would
+        # replay stale state and confuse the runner.
         attempt_session_id = f"{session_id}_attempt_{attempt}_rl{rl_retry}"
         await session_service.create_session(
             app_name=app_name,
@@ -79,6 +89,10 @@ async def _run_pipeline_loop(
         agents_seen = set()
         event_count = 0
         _rate_limited = False
+        # Orchestration-level 429 retry is intentionally disabled here because
+        # `rate_limit.py` already handles 429 backoff at the SDK layer via
+        # http_options on every GenerateContentConfig. Kept commented for the
+        # case where SDK-level retry proves insufficient.
         # try:
         async for event in runner.run_async(
             user_id=user_id,
@@ -153,6 +167,8 @@ async def _run_pipeline_loop(
                 f"Suggested fixes:\n{fix_lines}\n\n"
                 "Please rewrite the animation from scratch and address all issues above."
             )
+            # Cap the feedback we inject into the next attempt so prompt tokens
+            # do not grow unboundedly across retries.
             _MAX_FEEDBACK = 2000
             previous_feedback = (
                 raw_feedback[:_MAX_FEEDBACK] + "..." if len(raw_feedback) > _MAX_FEEDBACK else raw_feedback
@@ -251,6 +267,8 @@ async def _run_generation_pipeline_loop(
                 f"Suggested fixes:\n{fix_lines}\n\n"
                 "Please rewrite the animation from scratch and address all issues above."
             )
+            # Cap the feedback we inject into the next attempt so prompt tokens
+            # do not grow unboundedly across retries.
             _MAX_FEEDBACK = 2000
             previous_feedback = (
                 raw_feedback[:_MAX_FEEDBACK] + "..." if len(raw_feedback) > _MAX_FEEDBACK else raw_feedback

@@ -1,3 +1,5 @@
+"""Job endpoint: read-only access to the current state of a generation job (used by frontend polling)."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter

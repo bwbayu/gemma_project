@@ -11,10 +11,11 @@ RATE_LIMIT_SLEEP_SECONDS = float(os.getenv("GENAI_429_SLEEP_SECONDS", "65"))
 RATE_LIMIT_RETRY_ATTEMPTS = int(os.getenv("GENAI_429_RETRY_ATTEMPTS", "15"))
 
 # Retry profile tuned for transient quota spikes.
+# `initial_delay=1` + `max_delay=RATE_LIMIT_SLEEP_SECONDS` with `exp_base=2` and
+# `jitter=1` gives 1 s, 2 s, 4 s, ... capped at `RATE_LIMIT_SLEEP_SECONDS` (65 s
+# by default). Comment swap-points are left inline for quick A/B tuning.
 _HTTP_RETRY_OPTIONS = types.HttpRetryOptions(
     attempts=RATE_LIMIT_RETRY_ATTEMPTS,
-    # Constant retry delay:
-    # initial == max, exp_base=1, jitter=0
     initial_delay=1.0, # 1.0 | RATE_LIMIT_SLEEP_SECONDS
     max_delay=RATE_LIMIT_SLEEP_SECONDS,
     exp_base=2.0, # 2.0 | 1.0

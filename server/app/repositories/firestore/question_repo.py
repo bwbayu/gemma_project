@@ -1,3 +1,5 @@
+"""Firestore CRUD for the `questions` collection."""
+
 from __future__ import annotations
 
 from google.cloud import firestore

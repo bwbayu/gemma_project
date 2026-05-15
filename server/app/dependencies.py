@@ -1,3 +1,5 @@
+"""Lazy singletons for the GCP clients (Firestore, GCS) injected into FastAPI handlers."""
+
 from __future__ import annotations
 
 import os

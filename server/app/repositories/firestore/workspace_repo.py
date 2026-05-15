@@ -1,3 +1,5 @@
+"""Firestore CRUD for the `workspaces` collection."""
+
 from __future__ import annotations
 
 from google.cloud import firestore

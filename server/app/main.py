@@ -1,3 +1,5 @@
+"""FastAPI app factory: wires CORS, exception handlers, and routers under the configured prefix."""
+
 from __future__ import annotations
 
 import logging

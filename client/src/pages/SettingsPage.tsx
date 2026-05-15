@@ -5,7 +5,7 @@ import { Card } from '../components/ui/Card'
 import { ApiError } from '../features/api/http'
 import { listWorkspaceQuestions } from '../features/api/questions'
 import { getActiveWorkspace } from '../features/api/workspace'
-import type { QuestionItem, Workspace } from '../features/mock/types'
+import type { QuestionItem, Workspace } from '../features/types/types'
 
 /** Settings page showing the active workspace and question activity stats, with a manual refresh button. */
 export function SettingsPage() {

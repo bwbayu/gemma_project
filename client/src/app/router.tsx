@@ -1,3 +1,5 @@
+/** Browser router config: AppShell with index Dashboard, plus Settings, Help, and a 404 fallback. */
+
 import { Navigate, createBrowserRouter } from 'react-router-dom'
 import { AppShell } from './AppShell'
 import { DashboardPage } from '../pages/DashboardPage'

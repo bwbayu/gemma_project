@@ -1,5 +1,5 @@
 import { apiRequest } from './http'
-import type { GenerationJob, QuestionItem } from '../mock/types'
+import type { GenerationJob, QuestionItem } from '../types/types'
 
 interface CreateQuestionResponse {
   question: QuestionItem

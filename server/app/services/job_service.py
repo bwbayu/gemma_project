@@ -1,3 +1,5 @@
+"""Generation job lifecycle: queue, drive the pipeline stage machine, and persist results."""
+
 from __future__ import annotations
 
 import asyncio
@@ -78,6 +80,10 @@ async def _run_generation_job(job_id: str) -> None:
         )
         return
 
+    # Stage order: reading_question -> generating_animation -> rendering_video ->
+    # validating_output -> preparing_assets -> awaiting_review (or -> failed).
+    # The short sleeps between stages give the frontend's 2 s poll a chance to
+    # observe each transition instead of jumping straight to the terminal state.
     try:
         _patch_job(job_id, status="running", stage="reading_question", message="Reading question source...")
         await asyncio.sleep(0.5)
@@ -133,6 +139,9 @@ async def _run_generation_job(job_id: str) -> None:
             review_payload["result"]["video_url"] = uploaded["public_url"]
             review_payload["result"]["video_gcs_object"] = uploaded["object_name"]
 
+            # Eagerly convert MP4 -> GIF and push to Drive so the review UI has a
+            # previewable asset immediately. Failures here are non-fatal: the approve
+            # path will retry the conversion (see review_service._retry_gif_pipeline).
             try:
                 gif_dir = os.path.join(tempfile.gettempdir(), "physicsanimator", "gif")
                 os.makedirs(gif_dir, exist_ok=True)

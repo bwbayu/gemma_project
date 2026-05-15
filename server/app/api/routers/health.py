@@ -1,3 +1,5 @@
+"""Health check endpoint: confirms the server is up and reports the GCP identifiers it is bound to."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter

@@ -1,3 +1,5 @@
+"""Thin wrappers over the GCS bucket for the project's source images and rendered media."""
+
 from __future__ import annotations
 
 from urllib.parse import quote

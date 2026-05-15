@@ -1,5 +1,5 @@
 import { apiRequest } from './http'
-import type { Workspace } from '../mock/types'
+import type { Workspace } from '../types/types'
 
 /** Return the currently active workspace, or null if none has been created yet. */
 export async function getActiveWorkspace(): Promise<Workspace | null> {
