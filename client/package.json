@@ -11,6 +11,7 @@
     "test:smoke": "vitest run src/smoke"
   },
   "dependencies": {
+    "@radix-ui/react-select": "^2.2.6",
     "lucide-react": "^1.14.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",

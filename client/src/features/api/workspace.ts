@@ -13,3 +13,15 @@ export async function createWorkspace(title: string, description: string): Promi
     body: JSON.stringify({ title, description }),
   })
 }
+
+/** Return all workspaces ordered by most recently updated. */
+export async function listWorkspaces(): Promise<Workspace[]> {
+  return apiRequest<Workspace[]>('/workspaces')
+}
+
+/** Mark a workspace as the active workspace and return the activated workspace. */
+export async function activateWorkspace(workspaceId: string): Promise<Workspace> {
+  return apiRequest<Workspace>(`/workspaces/${workspaceId}/activate`, {
+    method: 'POST',
+  })
+}

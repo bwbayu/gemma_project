@@ -27,6 +27,17 @@ def get_workspace(workspace_id: str) -> dict | None:
     return data
 
 
+def list_all_workspaces() -> list[dict]:
+    """Return every workspace document, with workspace_id injected."""
+    docs = get_collection(WORKSPACES_COLLECTION).stream()
+    results: list[dict] = []
+    for doc in docs:
+        data = doc.to_dict() or {}
+        data["workspace_id"] = doc.id
+        results.append(data)
+    return results
+
+
 def find_workspace_by_form_id(form_id: str) -> dict | None:
     """Find the first workspace linked to a given Google Form ID, or None."""
     docs = (

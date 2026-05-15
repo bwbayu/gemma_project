@@ -5,6 +5,7 @@ import { Badge } from '../components/ui/Badge'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
+import { Select } from '../components/ui/Select'
 import { ApiError } from '../features/api/http'
 import { getJob, isTerminalJob } from '../features/api/jobs'
 import {
@@ -20,8 +21,10 @@ import {
 } from '../features/api/review'
 import type { FormLinks } from '../features/api/review'
 import {
+  activateWorkspace,
   createWorkspace as createWorkspaceApi,
   getActiveWorkspace,
+  listWorkspaces,
 } from '../features/api/workspace'
 import type { GenerationJob, JobStage, QuestionItem, ReviewResult, Workspace } from '../features/mock/types'
 
@@ -74,6 +77,7 @@ const POLL_INTERVAL_MS = 2000
 export function DashboardPage() {
   const navigate = useNavigate()
   const [workspace, setWorkspace] = useState<Workspace | null>(null)
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [questionItems, setQuestionItems] = useState<QuestionItem[]>([])
   const [activeJob, setActiveJob] = useState<GenerationJob | null>(null)
   const [reviewResult, setReviewResult] = useState<ReviewResult | null>(null)
@@ -104,23 +108,15 @@ export function DashboardPage() {
     /** Load the active workspace and its questions on mount, setting load error on failure. */
     async function hydrateWorkspace() {
       try {
-        const found = await getActiveWorkspace()
+        const [found, list] = await Promise.all([getActiveWorkspace(), listWorkspaces()])
         if (!mounted) {
           return
         }
-        setWorkspace(found)
+        setWorkspaces(list)
         if (found) {
-          const questions = await listWorkspaceQuestions(found.workspaceId)
-          if (mounted) {
-            setQuestionItems(questions)
-            const inFlight = questions.find(
-              (question) => question.status === 'generating' && question.lastJobId,
-            )
-            if (inFlight?.lastJobId) {
-              void trackJob(inFlight.lastJobId, found.workspaceId)
-            }
-          }
+          await loadWorkspaceContext(found, () => mounted)
         } else {
+          setWorkspace(null)
           setQuestionItems([])
         }
       } catch (error) {
@@ -161,6 +157,51 @@ export function DashboardPage() {
   async function refreshQuestions(targetWorkspaceId: string): Promise<void> {
     const list = await listWorkspaceQuestions(targetWorkspaceId)
     setQuestionItems(list)
+  }
+
+  /** Set the given workspace as the current context, load its questions, and resume any in-flight job. */
+  async function loadWorkspaceContext(
+    target: Workspace,
+    isMounted: () => boolean = () => true,
+  ): Promise<void> {
+    setWorkspace(target)
+    const questions = await listWorkspaceQuestions(target.workspaceId)
+    if (!isMounted()) {
+      return
+    }
+    setQuestionItems(questions)
+    const inFlight = questions.find(
+      (question) => question.status === 'generating' && question.lastJobId,
+    )
+    if (inFlight?.lastJobId) {
+      void trackJob(inFlight.lastJobId, target.workspaceId)
+    }
+  }
+
+  /** Switch the active workspace, clearing transient UI state and reloading the new workspace's context. */
+  async function handleSwitchWorkspace(workspaceId: string): Promise<void> {
+    if (!workspaceId || workspaceId === workspace?.workspaceId) {
+      return
+    }
+    pollTokenRef.current = 0
+    setActiveJob(null)
+    setReviewResult(null)
+    setApprovedFormLinks(null)
+    setSubmitError('')
+    setSubmitSuccess('')
+    setCopyMessage('')
+    try {
+      const activated = await activateWorkspace(workspaceId)
+      await loadWorkspaceContext(activated)
+      const list = await listWorkspaces()
+      setWorkspaces(list)
+    } catch (error) {
+      if (error instanceof ApiError) {
+        setLoadError(error.message)
+      } else {
+        setLoadError('Could not switch workspace.')
+      }
+    }
   }
 
   /** Poll the job endpoint until it reaches a terminal state, then refresh the question list. */
@@ -213,6 +254,7 @@ export function DashboardPage() {
     try {
       const workspace = await createWorkspaceApi(title, description)
       setWorkspace(workspace)
+      setWorkspaces((prev) => [workspace, ...prev.filter((w) => w.workspaceId !== workspace.workspaceId)])
       await refreshQuestions(workspace.workspaceId)
       setCreateTitle('')
       setCreateDescription('')
@@ -482,26 +524,39 @@ export function DashboardPage() {
         </form>
       </Card>
 
-      <Card className="flex items-center justify-between">
-        <div>
+      <Card className="flex items-center justify-between gap-4">
+        <div className="flex-1 space-y-2">
           {loading ? (
             <>
-              <p className="font-medium text-ink">Loading workspace...</p>
+              <p className="font-medium text-ink">Loading workspaces...</p>
               <p className="text-sm text-slate">Checking backend active workspace.</p>
             </>
-          ) : workspace ? (
+          ) : workspaces.length === 0 ? (
             <>
-              <p className="font-medium text-ink">{workspace.formRef.formTitle}</p>
-              <p className="text-sm text-slate">{workspace.formRef.formDescription}</p>
-              <p className="mt-1 text-xs text-slate">Form ID: {workspace.formRef.formId}</p>
-            </>
-          ) : (
-            <>
-              <p className="font-medium text-ink">No Active Workspace</p>
+              <p className="font-medium text-ink">No Workspaces Yet</p>
               <p className="text-sm text-slate">
                 Create a new workspace from the panel above before submitting questions.
               </p>
             </>
+          ) : (
+            <div className="space-y-1">
+              <p className="text-sm text-slate">Active workspace</p>
+              <Select
+                ariaLabel="Active workspace"
+                onValueChange={(value) => void handleSwitchWorkspace(value)}
+                options={workspaces.map((w) => ({
+                  value: w.workspaceId,
+                  label: w.formRef.formTitle,
+                }))}
+                placeholder="Select a workspace"
+                value={workspace?.workspaceId}
+              />
+              {workspace ? (
+                <p className="text-xs text-slate">
+                  {workspace.formRef.formDescription} — Form ID: {workspace.formRef.formId}
+                </p>
+              ) : null}
+            </div>
           )}
         </div>
         <Badge tone={workspace ? 'success' : 'warning'}>

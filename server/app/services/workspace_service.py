@@ -11,6 +11,7 @@ from app.repositories.firestore.app_state_repo import (
 from app.repositories.firestore.workspace_repo import (
     create_workspace,
     get_workspace,
+    list_all_workspaces,
 )
 from app.utils.errors import AppError
 
@@ -105,6 +106,27 @@ def get_active_workspace_service() -> dict | None:
     entity = get_workspace(workspace_id)
     if not entity:
         return None
+    return _to_workspace_response(entity)
+
+
+def list_workspaces_service() -> list[dict]:
+    """Return all workspaces ordered by updated_at descending."""
+    entities = list_all_workspaces()
+    entities.sort(key=lambda e: e.get("updated_at", ""), reverse=True)
+    return [_to_workspace_response(e) for e in entities]
+
+
+def activate_workspace_service(workspace_id: str) -> dict:
+    """Mark a workspace as active and return its API shape."""
+    entity = get_workspace(workspace_id)
+    if not entity:
+        raise AppError(
+            code="WORKSPACE_NOT_FOUND",
+            message="Workspace not found.",
+            details={"workspaceId": workspace_id},
+            status_code=404,
+        )
+    set_active_workspace_id(workspace_id)
     return _to_workspace_response(entity)
 
 
