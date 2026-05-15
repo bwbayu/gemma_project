@@ -25,3 +25,11 @@ dist-ssr
 
 *.md
 .env
+.agents
+.env.production
+
+# Firebase
+.firebase/
+
+# Claude Code
+skills-lock.json

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -10,6 +12,8 @@ from app.repositories.firestore.question_repo import get_question, update_questi
 from app.repositories.storage.gcs_repo import upload_file
 from app.services.pipeline_service import run_pipeline_for_question
 from app.utils.errors import AppError
+
+logger = logging.getLogger(__name__)
 
 _JOB_TASKS: set[asyncio.Task] = set()
 
@@ -95,9 +99,13 @@ async def _run_generation_job(job_id: str) -> None:
             },
             "result": {
                 "video_url": question.get("result_video_url"),
+                "video_gcs_object": None,
                 "gif_url": question.get("result_gif_url"),
+                "gif_gcs_object": None,
+                "gif_drive_file_id": None,
                 "thumbnail_url": question.get("result_thumbnail_url"),
             },
+            "gif_status": "pending",
             "summary": {
                 "scenario": "Physics scenario extracted from source input.",
                 "given_information": ["Refer to source prompt and visual cues."],
@@ -106,7 +114,6 @@ async def _run_generation_job(job_id: str) -> None:
             "validation": {
                 "verdict": run_result.verdict,
                 "summary": run_result.summary,
-                "local_video_path": run_result.video_local_path
             },
             "append": {
                 "status": "not_started",
@@ -124,6 +131,30 @@ async def _run_generation_job(job_id: str) -> None:
             object_name = f"questions/{workspace_id}/{question_id}/result{ext}"
             uploaded = upload_file(object_name, run_result.video_local_path, content_type="video/mp4")
             review_payload["result"]["video_url"] = uploaded["public_url"]
+            review_payload["result"]["video_gcs_object"] = uploaded["object_name"]
+
+            try:
+                gif_dir = os.path.join(tempfile.gettempdir(), "physicsanimator", "gif")
+                os.makedirs(gif_dir, exist_ok=True)
+                gif_local_path = os.path.join(gif_dir, f"{question_id}.gif")
+
+                from src.tools.form_tools import upload_image_to_drive
+                from src.utils.mp42gif import mp4_to_gif_best_quality
+
+                mp4_to_gif_best_quality(run_result.video_local_path, gif_local_path)
+
+                gif_object_name = f"questions/{workspace_id}/{question_id}/result.gif"
+                gif_uploaded = upload_file(gif_object_name, gif_local_path, content_type="image/gif")
+
+                drive_result = upload_image_to_drive(gif_local_path)
+
+                review_payload["result"]["gif_url"] = gif_uploaded["public_url"]
+                review_payload["result"]["gif_gcs_object"] = gif_uploaded["object_name"]
+                review_payload["result"]["gif_drive_file_id"] = drive_result.get("driveFileId")
+                review_payload["gif_status"] = "done"
+            except Exception as gif_exc:
+                logger.exception("Eager GIF/Drive upload failed for question %s", question["question_id"])
+                review_payload["gif_status"] = "failed"
 
         _patch_job(job_id, stage="preparing_assets", message="Preparing review assets...")
         await asyncio.sleep(0.5)

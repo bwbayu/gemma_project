@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime, timezone
 
@@ -12,6 +13,8 @@ from app.repositories.firestore.workspace_repo import (
     get_workspace,
 )
 from app.utils.errors import AppError
+
+logger = logging.getLogger(__name__)
 
 def _now_iso() -> str:
     """Return the current UTC timestamp as an ISO 8601 string."""
@@ -61,7 +64,16 @@ def create_workspace_service(title: str, description: str) -> dict:
     # Form ID placeholder in stage 2 until real Forms create/open sync logic.
     from src.tools.form_tools import create_form
 
-    form  = create_form(clean_title, clean_description)
+    try:
+        form = create_form(clean_title, clean_description)
+    except Exception as exc:
+        logger.exception("Google Form creation failed")
+        raise AppError(
+            code="GOOGLE_FORM_CREATE_FAILED",
+            message="Failed to create Google Form. Check Forms/Drive OAuth secrets and Cloud Run logs.",
+            details={"type": type(exc).__name__, "reason": str(exc)[:300]},
+            status_code=502,
+        ) from exc
 
     # form_id = f"mock_form_{uuid.uuid4().hex[:12]}"
     form_id = form["formId"]

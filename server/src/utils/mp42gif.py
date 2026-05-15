@@ -1,8 +1,10 @@
+import os
 import subprocess
+import tempfile
 
 def mp4_to_gif_best_quality(input_mp4: str, output_gif: str, fps: int = 15, width: int = 960):
     """Convert an MP4 to a high-quality GIF using a two-pass ffmpeg approach: palette generation then palette-based encoding."""
-    palette_file = "palette.png"
+    palette_file = os.path.join(tempfile.gettempdir(), "palette.png")
 
     # 1) Generate an optimized color palette from the video
     subprocess.run([

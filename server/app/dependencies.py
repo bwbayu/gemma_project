@@ -23,7 +23,10 @@ _clients: InfraClients | None = None
 
 
 def _validate_env(settings: Settings) -> None:
-    """Resolve and validate the GOOGLE_APPLICATION_CREDENTIALS path, then set it in the environment."""
+    """Use a local credentials file when provided; otherwise let ADC resolve credentials."""
+    if not settings.google_application_credentials:
+        return
+
     creds_path = Path(settings.google_application_credentials)
     if not creds_path.is_absolute():
         creds_path = Path.cwd() / creds_path

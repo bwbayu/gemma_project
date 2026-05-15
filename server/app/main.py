@@ -14,7 +14,6 @@ from app.api.routers.jobs import router as jobs_router
 from app.api.routers.questions import router as questions_router
 from app.api.routers.workspaces import router as workspaces_router
 from app.config import get_settings
-from app.dependencies import initialize_infra_clients
 from app.utils.errors import AppError
 
 logger = logging.getLogger(__name__)
@@ -23,16 +22,20 @@ logger = logging.getLogger(__name__)
 def create_app() -> FastAPI:
     """Build and configure the FastAPI application with middleware, routers, and exception handlers."""
     settings = get_settings()
+    allowed_origins = [
+        origin.strip()
+        for origin in settings.cors_allowed_origins.split(",")
+        if origin.strip()
+    ]
     app = FastAPI(
         title="PhysicsAnimator Backend API",
         version="0.1.0",
     )
 
-    # Hackathon v1: allow all origins.
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
+        allow_origins=allowed_origins,
+        allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
     )
@@ -73,11 +76,6 @@ def create_app() -> FastAPI:
             }
         )
         return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content=body.model_dump())
-
-    @app.on_event("startup")
-    async def _startup() -> None:
-        """Initialize GCP infrastructure clients on server startup."""
-        initialize_infra_clients()
 
     api_router = APIRouter(prefix=settings.api_prefix)
     api_router.include_router(workspaces_router)

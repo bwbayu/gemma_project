@@ -23,6 +23,7 @@ class ReviewSourceModel(_ApiModel):
 class ReviewResultAssetsModel(_ApiModel):
     video_url: str | None = Field(default=None, alias="videoUrl")
     gif_url: str | None = Field(default=None, alias="gifUrl")
+    gif_drive_file_id: str | None = Field(default=None, alias="gifDriveFileId")
     thumbnail_url: str | None = Field(default=None, alias="thumbnailUrl")
 
 
@@ -35,7 +36,6 @@ class ReviewSummaryModel(_ApiModel):
 class ReviewValidationModel(_ApiModel):
     verdict: Literal["PASS", "FAIL"]
     summary: str
-    local_video_path: str
 
 
 class ReviewAppendModel(_ApiModel):
@@ -51,6 +51,7 @@ class ReviewResultModel(_ApiModel):
     summary: ReviewSummaryModel
     validation: ReviewValidationModel
     append: ReviewAppendModel
+    gif_status: Literal["pending", "done", "failed"] | None = Field(default=None, alias="gifStatus")
 
 
 class FormLinksModel(_ApiModel):

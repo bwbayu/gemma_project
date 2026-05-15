@@ -57,6 +57,7 @@ export interface ReviewResult {
   result: {
     videoUrl: string
     gifUrl: string
+    gifDriveFileId: string | null
     thumbnailUrl: string
   }
   summary: {
@@ -67,13 +68,13 @@ export interface ReviewResult {
   validation: {
     verdict: 'PASS' | 'FAIL'
     summary: string
-    local_video_path?: string
   }
   append: {
     status: 'not_started' | 'in_progress' | 'added' | 'error'
     formId: string
     errorMessage?: string | null
   }
+  gifStatus?: 'pending' | 'done' | 'failed' | null
 }
 
 export interface StageReviewChecklist {
