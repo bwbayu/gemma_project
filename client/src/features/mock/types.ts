@@ -1,4 +1,4 @@
-export type QuestionStatus = 'generated' | 'added' | 'failed' | 'discarded'
+export type QuestionStatus = 'generating' | 'generated' | 'added' | 'failed' | 'discarded'
 
 export type JobStage =
   | 'reading_question'
@@ -32,6 +32,7 @@ export interface QuestionItem {
   inputType: 'image' | 'text'
   status: QuestionStatus
   createdAt: string
+  lastJobId?: string | null
 }
 
 export interface GenerationJob {

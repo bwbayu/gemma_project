@@ -96,6 +96,7 @@ export function DashboardPage() {
   const [loadingCreate, setLoadingCreate] = useState(false)
 
   const pollTokenRef = useRef(0)
+  const reviewCardRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     let mounted = true
@@ -112,6 +113,12 @@ export function DashboardPage() {
           const questions = await listWorkspaceQuestions(found.workspaceId)
           if (mounted) {
             setQuestionItems(questions)
+            const inFlight = questions.find(
+              (question) => question.status === 'generating' && question.lastJobId,
+            )
+            if (inFlight?.lastJobId) {
+              void trackJob(inFlight.lastJobId, found.workspaceId)
+            }
           }
         } else {
           setQuestionItems([])
@@ -160,8 +167,14 @@ export function DashboardPage() {
         if (latest.status === 'failed' || latest.stage === 'failed') {
           setSubmitError(latest.message || 'Generation failed.')
         } else {
-          setSubmitSuccess('Generation completed. Open review to inspect result.')
-          window.location.reload()
+          setSubmitSuccess('Generation completed. Opening review...')
+          const targetId = latest.questionItemId
+          if (targetId) {
+            await handleOpenReview(targetId)
+            requestAnimationFrame(() => {
+              reviewCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            })
+          }
         }
         return
       }
@@ -394,6 +407,7 @@ export function DashboardPage() {
   const editFormUrl = approvedFormLinks?.formEditUrl || workspace?.formRef.formEditUrl || ''
   const responderFormUrl =
     approvedFormLinks?.formResponderUrl || workspace?.formRef.formResponderUrl || ''
+  const hasGeneratingQuestion = questionItems.some((item) => item.status === 'generating')
 
   return (
     <section className="space-y-5">
@@ -512,12 +526,16 @@ export function DashboardPage() {
                     <Badge tone={getStatusTone(item.status)}>{item.status}</Badge>
                   </div>
                   <div className="mt-2">
-                    <Button
-                      onClick={() => void handleOpenReview(item.questionItemId)}
-                      variant="ghost"
-                    >
-                      Open Review
-                    </Button>
+                    {item.status !== 'generating' ? (
+                      <Button
+                        onClick={() => void handleOpenReview(item.questionItemId)}
+                        variant="ghost"
+                      >
+                        Open Review
+                      </Button>
+                    ) : (
+                      <span className="text-xs text-slate">Generating animation...</span>
+                    )}
                   </div>
                 </li>
               ))}
@@ -584,8 +602,16 @@ export function DashboardPage() {
 
             {submitError ? <p className="text-sm text-[#b44f2a]">{submitError}</p> : null}
 
-            <Button disabled={submitting || !workspace} type="submit" variant="secondary">
-              {submitting ? 'Submitting...' : 'Start Generation'}
+            <Button
+              disabled={submitting || !workspace || hasGeneratingQuestion}
+              type="submit"
+              variant="secondary"
+            >
+              {submitting
+                ? 'Submitting...'
+                : hasGeneratingQuestion
+                  ? 'Generating...'
+                  : 'Start Generation'}
             </Button>
           </form>
         </Card>
@@ -608,13 +634,14 @@ export function DashboardPage() {
       ) : null}
 
       {reviewResult ? (
-        <Card className="space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="font-medium text-ink">Review Result</p>
-            <Badge tone={reviewResult.validation.verdict === 'PASS' ? 'success' : 'warning'}>
-              {reviewResult.validation.verdict}
-            </Badge>
-          </div>
+        <div ref={reviewCardRef}>
+          <Card className="space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="font-medium text-ink">Review Result</p>
+              <Badge tone={reviewResult.validation.verdict === 'PASS' ? 'success' : 'warning'}>
+                {reviewResult.validation.verdict}
+              </Badge>
+            </div>
 
           <div className="grid gap-3 lg:grid-cols-2">
             <Card className="space-y-2 p-3 shadow-none">
@@ -714,7 +741,8 @@ export function DashboardPage() {
             <p className="text-sm text-[#b44f2a]">Append error: {reviewResult.append.errorMessage}</p>
           ) : null}
           {copyMessage ? <p className="text-sm text-accent">{copyMessage}</p> : null}
-        </Card>
+          </Card>
+        </div>
       ) : null}
     </section>
   )

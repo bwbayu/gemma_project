@@ -25,12 +25,14 @@ def _now_iso() -> str:
 
 def _to_question_item_model(entity: dict) -> dict:
     """Reshape a Firestore question document into the API question item shape."""
+    latest_job = get_latest_job_by_question(entity["question_id"])
     return {
         "questionItemId": entity["question_id"],
         "label": entity["label"],
         "inputType": entity["input_type"],
         "status": entity["status"],
         "createdAt": entity["created_at"],
+        "lastJobId": latest_job["job_id"] if latest_job else None,
     }
 
 
@@ -376,7 +378,7 @@ def regenerate_question_service(question_id: str) -> dict:
     update_question(
         question_id,
         {
-            "status": "generated",
+            "status": "generating",
             "regeneration_count": new_attempt,
             "updated_at": now,
         },

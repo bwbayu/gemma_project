@@ -13,7 +13,7 @@ class _ApiModel(BaseModel):
     }
 
 
-QuestionStatus = Literal["generated", "added", "failed", "discarded"]
+QuestionStatus = Literal["generating", "generated", "added", "failed", "discarded"]
 QuestionInputType = Literal["image", "text"]
 
 
@@ -23,6 +23,7 @@ class QuestionItemModel(_ApiModel):
     input_type: QuestionInputType = Field(alias="inputType")
     status: QuestionStatus
     created_at: str = Field(alias="createdAt")
+    last_job_id: str | None = Field(default=None, alias="lastJobId")
 
 
 class CreateQuestionResponse(_ApiModel):

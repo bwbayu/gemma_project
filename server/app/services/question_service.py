@@ -8,7 +8,7 @@ from tempfile import gettempdir
 from fastapi import UploadFile
 
 from app.config import get_settings
-from app.repositories.firestore.job_repo import create_job
+from app.repositories.firestore.job_repo import create_job, get_latest_job_by_question
 from app.repositories.firestore.question_repo import (
     create_question,
     list_questions_by_workspace,
@@ -33,7 +33,7 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _to_question_item_model(entity: dict) -> dict:
+def _to_question_item_model(entity: dict, last_job_id: str | None = None) -> dict:
     """Reshape a Firestore question document into the API response shape."""
     return {
         "questionItemId": entity["question_id"],
@@ -41,6 +41,7 @@ def _to_question_item_model(entity: dict) -> dict:
         "inputType": entity["input_type"],
         "status": entity["status"],
         "createdAt": entity["created_at"],
+        "lastJobId": last_job_id,
     }
 
 
@@ -71,7 +72,13 @@ def list_workspace_questions_service(workspace_id: str) -> list[dict]:
             details={"workspaceId": workspace_id},
             status_code=404,
         )
-    return [_to_question_item_model(item) for item in list_questions_by_workspace(workspace_id)]
+    items = []
+    for question in list_questions_by_workspace(workspace_id):
+        latest_job = get_latest_job_by_question(question["question_id"])
+        items.append(
+            _to_question_item_model(question, latest_job["job_id"] if latest_job else None)
+        )
+    return items
 
 
 def _validate_input(text: str | None, image: UploadFile | None) -> None:
@@ -151,7 +158,7 @@ async def create_question_service(workspace_id: str, text: str | None, image: Up
         "workspace_id": workspace_id,
         "label": label,
         "input_type": input_type,
-        "status": "generated",
+        "status": "generating",
         "source_text": source_text,
         "source_image_url": source_image_url,
         "source_local_path": source_local_path,
@@ -183,6 +190,6 @@ async def create_question_service(workspace_id: str, text: str | None, image: Up
     job_payload["job_id"] = job_id
 
     return {
-        "question": _to_question_item_model(question_payload),
+        "question": _to_question_item_model(question_payload, job_id),
         "job": _to_generation_job_model(job_payload),
     }
