@@ -147,6 +147,16 @@ export function DashboardPage() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!reviewResult) {
+      return
+    }
+    const handle = requestAnimationFrame(() => {
+      reviewCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    })
+    return () => cancelAnimationFrame(handle)
+  }, [reviewResult])
+
   /** Re-fetch the question list for a workspace and update local state. */
   async function refreshQuestions(targetWorkspaceId: string): Promise<void> {
     const list = await listWorkspaceQuestions(targetWorkspaceId)
@@ -171,9 +181,6 @@ export function DashboardPage() {
           const targetId = latest.questionItemId
           if (targetId) {
             await handleOpenReview(targetId)
-            requestAnimationFrame(() => {
-              reviewCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-            })
           }
         }
         return
