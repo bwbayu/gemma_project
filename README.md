@@ -122,7 +122,7 @@ For deeper setup notes see [client/README.md](client/README.md) and [server/READ
 
 ## Deployment
 
-The backend ships as a multi-stage Docker image and runs on Google Cloud Run; the client builds to a static bundle and is hosted on Firebase Hosting. See [DEPLOYMENT.md](DEPLOYMENT.md) for the full step-by-step (Artifact Registry, Secret Manager, Cloud Run, Firebase) and [ARCHITECTURE_DISCUSSION.md](ARCHITECTURE_DISCUSSION.md) for the Cloud Run trade-offs.
+The backend ships as a multi-stage Docker image and runs on Google Cloud Run; the client builds to a static bundle and is hosted on Firebase Hosting. See [DEPLOYMENT.md](DEPLOYMENT.md) for the full step-by-step (Artifact Registry, Secret Manager, Cloud Run, Firebase).
 
 ---
 
@@ -131,8 +131,6 @@ The backend ships as a multi-stage Docker image and runs on Google Cloud Run; th
 - [client/README.md](client/README.md) — frontend overview, directory tree, and page reference.
 - [server/README.md](server/README.md) — backend overview, directory tree, multi-agent pipeline, and API reference.
 - [DEPLOYMENT.md](DEPLOYMENT.md) — deployment guide.
-- [ARCHITECTURE_DISCUSSION.md](ARCHITECTURE_DISCUSSION.md) — Cloud Run architecture analysis.
-
 ---
 
 ## License
