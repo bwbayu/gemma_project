@@ -1,34 +1,45 @@
+"""Review-and-decide flow: surface the review payload, approve/discard/regenerate, and handle GIF/Form append."""
+
 from __future__ import annotations
 
+import logging
+import os
+import tempfile
 import uuid
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 
 from app.config import get_settings
 from app.repositories.firestore.job_repo import create_job, get_latest_job_by_question
 from app.repositories.firestore.question_repo import get_question, update_question
 from app.repositories.firestore.workspace_repo import get_workspace
+from app.repositories.storage.gcs_repo import download_file, upload_file
 from app.services.job_service import enqueue_generation_job
 from app.utils.errors import AppError
-from pathlib import Path
-import os
-from urllib.parse import urlparse
+
+logger = logging.getLogger(__name__)
 
 
 def _now_iso() -> str:
+    """Return the current UTC timestamp as an ISO 8601 string."""
     return datetime.now(timezone.utc).isoformat()
 
 
 def _to_question_item_model(entity: dict) -> dict:
+    """Reshape a Firestore question document into the API question item shape."""
+    latest_job = get_latest_job_by_question(entity["question_id"])
     return {
         "questionItemId": entity["question_id"],
         "label": entity["label"],
         "inputType": entity["input_type"],
         "status": entity["status"],
         "createdAt": entity["created_at"],
+        "lastJobId": latest_job["job_id"] if latest_job else None,
     }
 
 
 def _to_generation_job_model(entity: dict) -> dict:
+    """Reshape a Firestore job document into the API job response shape."""
     return {
         "jobId": entity["job_id"],
         "workspaceId": entity["workspace_id"],
@@ -46,6 +57,7 @@ def _to_generation_job_model(entity: dict) -> dict:
 
 
 def _to_workspace_links_model(workspace: dict) -> dict:
+    """Extract form edit/responder URLs from a workspace document."""
     return {
         "workspaceId": workspace["workspace_id"],
         "formEditUrl": workspace["form_edit_url"],
@@ -54,6 +66,7 @@ def _to_workspace_links_model(workspace: dict) -> dict:
 
 
 def _to_review_model(review: dict) -> dict:
+    """Reshape the nested review dict stored in Firestore into the API response schema."""
     source = review.get("source", {})
     result = review.get("result", {})
     summary = review.get("summary", {})
@@ -69,6 +82,7 @@ def _to_review_model(review: dict) -> dict:
         "result": {
             "videoUrl": result.get("video_url"),
             "gifUrl": result.get("gif_url"),
+            "gifDriveFileId": result.get("gif_drive_file_id"),
             "thumbnailUrl": result.get("thumbnail_url"),
         },
         "summary": {
@@ -79,17 +93,18 @@ def _to_review_model(review: dict) -> dict:
         "validation": {
             "verdict": validation.get("verdict", "FAIL"),
             "summary": validation.get("summary", ""),
-            "local_video_path": validation.get("local_video_path", "")
         },
         "append": {
             "status": append.get("status", "not_started"),
             "formId": append.get("form_id", ""),
             "errorMessage": append.get("error_message"),
         },
+        "gifStatus": review.get("gif_status"),
     }
 
 
 def _get_question_or_404(question_id: str) -> dict:
+    """Fetch a question document by ID, raising a 404 AppError if it does not exist."""
     question = get_question(question_id)
     if not question:
         raise AppError(
@@ -100,15 +115,80 @@ def _get_question_or_404(question_id: str) -> dict:
         )
     return question
 
-def _get_filename(url: str) -> str:
-    ext = ".gif"
-    path_obj = Path(urlparse(url).path)
-    filename = path_obj.with_suffix(ext).name
-    return filename
+def _gcs_object_from_url(public_url: str | None) -> str | None:
+    """Fallback parser: derive a GCS object path from a public storage URL."""
+    if not public_url:
+        return None
+    path = urlparse(public_url).path.lstrip("/")
+    if "/" not in path:
+        return None
+    return path.split("/", 1)[1]
+
+
+def _retry_gif_pipeline(question: dict, review_result: dict) -> str:
+    """Download the MP4 from GCS, convert to GIF, upload to GCS + Drive, persist new IDs to Firestore, return drive file id."""
+    # Fallback for the case where the eager GIF conversion in the generation job
+    # failed (or the job finished without ffmpeg available). At approve time the
+    # MP4 is guaranteed to be on GCS, so we can always re-run the conversion here.
+    from src.tools.form_tools import upload_image_to_drive
+    from src.utils.mp42gif import mp4_to_gif_best_quality
+
+    result = review_result.get("result", {}) or {}
+    video_object = result.get("video_gcs_object") or _gcs_object_from_url(result.get("video_url"))
+    if not video_object:
+        raise AppError(
+            code="REVIEW_MEDIA_UNAVAILABLE",
+            message="No GIF on Drive and no MP4 available to convert.",
+            details={"questionId": question["question_id"]},
+            status_code=409,
+        )
+
+    workspace_id = question["workspace_id"]
+    question_id = question["question_id"]
+
+    base_dir = os.path.join(tempfile.gettempdir(), "physicsanimator")
+    mp4_dir = os.path.join(base_dir, "mp4")
+    gif_dir = os.path.join(base_dir, "gif")
+    os.makedirs(mp4_dir, exist_ok=True)
+    os.makedirs(gif_dir, exist_ok=True)
+
+    mp4_local = os.path.join(mp4_dir, f"{question_id}.mp4")
+    gif_local = os.path.join(gif_dir, f"{question_id}_retry.gif")
+
+    download_file(video_object, mp4_local)
+    mp4_to_gif_best_quality(mp4_local, gif_local)
+
+    gif_object_name = f"questions/{workspace_id}/{question_id}/result.gif"
+    gif_uploaded = upload_file(gif_object_name, gif_local, content_type="image/gif")
+    drive_result = upload_image_to_drive(gif_local)
+    drive_file_id = drive_result.get("driveFileId")
+    if not drive_file_id:
+        raise AppError(
+            code="DRIVE_UPLOAD_FAILED",
+            message="Drive upload did not return a file id.",
+            status_code=502,
+        )
+
+    result["gif_url"] = gif_uploaded["public_url"]
+    result["gif_gcs_object"] = gif_uploaded["object_name"]
+    result["gif_drive_file_id"] = drive_file_id
+    review_result["result"] = result
+    review_result["gif_status"] = "done"
+
+    update_question(
+        question_id,
+        {
+            "review_result": review_result,
+            "result_gif_url": gif_uploaded["public_url"],
+            "updated_at": _now_iso(),
+        },
+    )
+    return drive_file_id
+
 
 def _append_question_to_form(question: dict, review_result: dict) -> None:
-    from src.tools.form_tools import get_form, add_image_question, upload_image_to_drive
-    from src.utils.mp42gif import mp4_to_gif_best_quality
+    """Append an image question to the Google Form, using the pre-uploaded Drive GIF or retrying conversion if missing."""
+    from src.tools.form_tools import add_image_question
 
     form_id = question.get("form_id")
     if not form_id:
@@ -124,58 +204,30 @@ def _append_question_to_form(question: dict, review_result: dict) -> None:
             details={"formId": form_id},
             status_code=400,
         )
-    
-    # convert video mp4 to Gif
-    _PROJECT_ROOT = str(Path(__file__).parent.parent.parent.resolve())
-    output_dir = os.path.join(_PROJECT_ROOT, "output/gif")
-    os.makedirs(output_dir, exist_ok=True)
-    gif_output_path = os.path.join(output_dir, _get_filename(review_result["validation"]["local_video_path"]))
 
-    # print(f"file_path {gif_output_path}")
-    mp4_to_gif_best_quality(review_result["validation"]["local_video_path"], gif_output_path)
+    result = review_result.get("result", {}) or {}
+    gif_status = review_result.get("gif_status")
+    drive_file_id = result.get("gif_drive_file_id")
+    if gif_status != "done" or not drive_file_id:
+        logger.info(
+            "GIF not ready for question %s (gif_status=%s, has_drive_id=%s) — running retry pipeline",
+            question["question_id"],
+            gif_status,
+            bool(drive_file_id),
+        )
+        drive_file_id = _retry_gif_pipeline(question, review_result)
 
-    # upload Gif to drive
-    drive_result = upload_image_to_drive(gif_output_path)
-
-    # add animation to existing form
-    add_image_question(form_id=form_id, 
-                       question_title="Watch the animation to answer the question. Provide a step-by-step solution", 
-                       drive_file_id=drive_result.get("driveFileId", ""),
-                       alt_text="Physics animation",
-                       required=True)
-
-    # source = review_result.get("source", {})
-    # result = review_result.get("result", {})
-    # input_type = source.get("input_type", "text")
-    # stem = source.get("text") if input_type == "text" else question.get("label")
-    # stem = (stem or question.get("label") or "Physics question").strip()
-    # video_url = result.get("video_url")
-
-    # prompt = f"{stem}\n\nObserve the animation before solving."
-    # if video_url:
-    #     prompt = f"{prompt}\nAnimation: {video_url}"
-
-    # form = get_form(form_id)
-    # items = form.get("items", []) if isinstance(form, dict) else []
-    # next_index = len(items)
-
-    # add_text_question(
-    #     form_id=form_id,
-    #     question_title=prompt[:500],
-    #     required=True,
-    #     paragraph=False,
-    #     index=next_index,
-    # )
-    # add_text_question(
-    #     form_id=form_id,
-    #     question_title="Show your working / solution steps",
-    #     required=False,
-    #     paragraph=True,
-    #     index=next_index + 1,
-    # )
+    add_image_question(
+        form_id=form_id,
+        question_title="Watch the animation to answer the question. Provide a step-by-step solution",
+        drive_file_id=drive_file_id,
+        alt_text="Physics animation",
+        required=True,
+    )
 
 
 def get_review_service(question_id: str) -> dict:
+    """Return the review payload for a question, raising 404 if generation has not completed yet."""
     question = _get_question_or_404(question_id)
     review_result = question.get("review_result")
     if not review_result:
@@ -189,6 +241,7 @@ def get_review_service(question_id: str) -> dict:
 
 
 def approve_question_service(question_id: str) -> dict:
+    """Append the question's animation to the linked Google Form and update the question status."""
     question = _get_question_or_404(question_id)
     workspace = get_workspace(question["workspace_id"])
     if not workspace:
@@ -257,6 +310,7 @@ def approve_question_service(question_id: str) -> dict:
 
 
 def discard_question_service(question_id: str) -> dict:
+    """Mark the question as discarded and reset its append status."""
     question = _get_question_or_404(question_id)
     workspace = get_workspace(question["workspace_id"])
     if not workspace:
@@ -275,7 +329,10 @@ def discard_question_service(question_id: str) -> dict:
         },
         "result": {
             "video_url": question.get("result_video_url"),
+            "video_gcs_object": None,
             "gif_url": question.get("result_gif_url"),
+            "gif_gcs_object": None,
+            "gif_drive_file_id": None,
             "thumbnail_url": question.get("result_thumbnail_url"),
         },
         "summary": {
@@ -285,6 +342,7 @@ def discard_question_service(question_id: str) -> dict:
         },
         "validation": {"verdict": "FAIL", "summary": "Question discarded by teacher."},
         "append": {"status": "not_started", "form_id": question.get("form_id")},
+        "gif_status": "pending",
     }
     review_result.setdefault("append", {})
     review_result["append"]["status"] = "not_started"
@@ -307,6 +365,7 @@ def discard_question_service(question_id: str) -> dict:
 
 
 def regenerate_question_service(question_id: str) -> dict:
+    """Reset the question to a pending state and queue a new generation job."""
     settings = get_settings()
     question = _get_question_or_404(question_id)
     workspace = get_workspace(question["workspace_id"])
@@ -324,7 +383,7 @@ def regenerate_question_service(question_id: str) -> dict:
     update_question(
         question_id,
         {
-            "status": "generated",
+            "status": "generating",
             "regeneration_count": new_attempt,
             "updated_at": now,
         },
@@ -359,7 +418,10 @@ def regenerate_question_service(question_id: str) -> dict:
             },
             "result": {
                 "video_url": updated.get("result_video_url"),
+                "video_gcs_object": None,
                 "gif_url": updated.get("result_gif_url"),
+                "gif_gcs_object": None,
+                "gif_drive_file_id": None,
                 "thumbnail_url": updated.get("result_thumbnail_url"),
             },
             "summary": {
@@ -369,6 +431,7 @@ def regenerate_question_service(question_id: str) -> dict:
             },
             "validation": {"verdict": "FAIL", "summary": "Regeneration in progress."},
             "append": {"status": "not_started", "form_id": updated.get("form_id")},
+            "gif_status": "pending",
         }
     else:
         review_result.setdefault("append", {})

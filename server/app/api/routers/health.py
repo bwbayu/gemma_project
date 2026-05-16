@@ -1,3 +1,5 @@
+"""Health check endpoint: confirms the server is up and reports the GCP identifiers it is bound to."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter
@@ -10,6 +12,7 @@ router = APIRouter(tags=["health"])
 
 @router.get("/healthz", response_model=HealthResponse)
 def healthz() -> HealthResponse:
+    """Return server health status and connected infrastructure identifiers."""
     clients = get_infra_clients()
     return HealthResponse(
         status="ok",

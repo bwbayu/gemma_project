@@ -46,6 +46,12 @@ def _get_creds():
                     "Download it from Google Cloud Console and set "
                     "GOOGLE_CREDENTIALS_PATH env var."
                 )
+            if os.environ.get("K_SERVICE"):
+                raise RuntimeError(
+                    "Google OAuth token is missing or invalid in Cloud Run. "
+                    "Mount token.json from Secret Manager and set "
+                    "GOOGLE_TOKEN_PATH to a writable path such as /tmp/token.json."
+                )
             flow = InstalledAppFlow.from_client_secrets_file(
                 credentials_path, SCOPES
             )

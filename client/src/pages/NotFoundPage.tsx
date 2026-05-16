@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { Button } from '../components/ui/Button'
 
+/** Fallback page displayed when a route does not match any defined path. */
 export function NotFoundPage() {
   return (
     <section className="space-y-4">

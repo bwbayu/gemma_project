@@ -5,6 +5,7 @@ type CardProps = PropsWithChildren<{
   className?: string
 }>
 
+/** Rounded panel with a border and shadow, used as the primary content container. */
 export function Card({ children, className }: CardProps) {
   return (
     <section

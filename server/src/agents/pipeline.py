@@ -1,3 +1,19 @@
+"""ADK pipeline definitions.
+
+`pipeline` runs PhysicsManimAgent → ValidatorAgent → FormAgent (full publish).
+`generation_pipeline` runs PhysicsManimAgent → ValidatorAgent (no publish — the
+FastAPI layer owns the Form append in this mode).
+
+Agents communicate through shared session state. Key state keys:
+- `original_question_text`, `validator_feedback`  (input to Coder)
+- `manim_code`, `video_path`                       (Coder outputs)
+- `vlm_validation_result`, `validation_result`     (Validator outputs)
+- `form_result`                                    (Form agent output, full pipeline only)
+
+Each pipeline gets its own Coder + Validator instance so concurrent runs do not
+share state inside the LlmAgent objects.
+"""
+
 from google.adk.agents import SequentialAgent
 
 from src.agents.physicsManimAgent import make_physics_manim_agent

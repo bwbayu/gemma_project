@@ -1,3 +1,9 @@
+"""Application settings loaded from environment / .env via Pydantic.
+
+`pipeline_mode` accepts: `legacy_generation` (Coder→Validator), `legacy_full_fallback`
+(Coder→Validator→Form via the ADK pipeline), or `mock` (skip generation entirely).
+"""
+
 from __future__ import annotations
 
 from pydantic import Field
@@ -8,9 +14,13 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     api_prefix: str = "/api/v1"
+    cors_allowed_origins: str = Field(
+        default="http://localhost:5173,http://localhost:8001",
+        alias="CORS_ALLOWED_ORIGINS",
+    )
 
     google_cloud_project: str = Field(alias="GOOGLE_CLOUD_PROJECT")
-    google_application_credentials: str = Field(alias="GOOGLE_APPLICATION_CREDENTIALS")
+    google_application_credentials: str | None = Field(default=None, alias="GOOGLE_APPLICATION_CREDENTIALS")
     gcs_bucket_name: str = Field(alias="GCS_BUCKET_NAME")
     firebase_storage_bucket: str = Field(alias="FIREBASE_STORAGE_BUCKET")
     firestore_database_id: str = Field(default="physicsanimator-hackathon", alias="FIRESTORE_DATABASE_ID")
@@ -20,4 +30,5 @@ class Settings(BaseSettings):
 
 
 def get_settings() -> Settings:
+    """Load and return application settings from environment variables or the .env file."""
     return Settings()

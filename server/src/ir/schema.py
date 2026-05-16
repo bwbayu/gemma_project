@@ -1,3 +1,10 @@
+"""Physics Intermediate Representation (IR) schema.
+
+Structured description of a physics scenario (objects, forces, tracks, motions,
+annotations) used by the experimental IR-driven compiler. Positions are relative
+([-1, 1]) so the renderer can map them onto whatever canvas it likes.
+"""
+
 from enum import Enum
 from pydantic import BaseModel, Field
 from typing import Optional, Literal, List, Any
@@ -8,6 +15,8 @@ from typing import Optional, Literal, List, Any
 # =========================================================
 
 class RelativePosition(BaseModel):
+    """2D position in relative coordinates: both axes are in [-1, 1]."""
+
     x: float
     y: float
 
@@ -34,6 +43,8 @@ class ForceDirection(str, Enum):
 
 
 class Force(BaseModel):
+    """A force acting on one object. Direction is an enum; use CUSTOM + `custom_angle_deg` for arbitrary angles."""
+
     id: str
 
     # object id
@@ -71,6 +82,8 @@ class PhysicsObjectType(str, Enum):
 
 
 class PhysicsObject(BaseModel):
+    """An entity in the scene (block, ball, spring, etc.) with optional position, angle, and mass."""
+
     id: str
 
     type: PhysicsObjectType
@@ -102,6 +115,8 @@ class TrackSegmentType(str, Enum):
 
 
 class TrackSegment(BaseModel):
+    """One segment of a path that objects can follow (line / arc / bezier / parabola / custom)."""
+
     id: str
 
     type: TrackSegmentType
@@ -132,6 +147,8 @@ class TrackSegment(BaseModel):
 
 
 class Track(BaseModel):
+    """An ordered list of `TrackSegment`s forming one path through the scene."""
+
     id: str
 
     segments: List[TrackSegment]
@@ -152,6 +169,8 @@ class MotionType(str, Enum):
 
 
 class Motion(BaseModel):
+    """How one object moves through the scene (static, along a track, linear, or rotating)."""
+
     id: str
 
     object_id: str
@@ -174,6 +193,8 @@ class Motion(BaseModel):
 # =========================================================
 
 class Annotation(BaseModel):
+    """A text/math label placed at a relative position in the scene."""
+
     id: str
 
     text: str
@@ -186,6 +207,8 @@ class Annotation(BaseModel):
 # =========================================================
 
 class CameraAction(BaseModel):
+    """Optional cinematic instruction (zoom, follow, pan)."""
+
     id: str
 
     type: Literal[
@@ -203,6 +226,7 @@ class CameraAction(BaseModel):
 # =========================================================
 
 class PhysicsIR(BaseModel):
+    """Root IR document: a self-contained description of one physics scene."""
 
     # physical entities
     objects: List[PhysicsObject]

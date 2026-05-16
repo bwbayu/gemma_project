@@ -1,3 +1,5 @@
+"""Formats IR validation errors and Manim syntax errors into retry-feedback strings."""
+
 from .schema import PhysicsIR
 import json
 

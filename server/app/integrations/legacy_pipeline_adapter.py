@@ -1,6 +1,7 @@
+"""Adapter that calls into `src.app` and normalizes its loose tuple return into a `PipelineRunResult`."""
+
 from __future__ import annotations
 
-import asyncio
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -36,6 +37,9 @@ async def run_legacy_pipeline(question_arg: str) -> PipelineRunResult:
     verdict: Verdict = "FAIL"
     feedback = ""
 
+    # `src.app.run_generation_pipeline` returns a plain `(video_path, verdict, feedback)`
+    # tuple with no schema, so we defensively check the type/length here rather than
+    # destructuring directly.
     if isinstance(raw_result, tuple):
         video_path = raw_result[0] if len(raw_result) > 0 else None
         verdict = raw_result[1] if len(raw_result) > 1 else "FAIL"
@@ -71,6 +75,8 @@ async def run_legacy_full_pipeline(question_arg: str) -> PipelineRunResult:
 
     video_path: str | None = None
     form_url: str | None = None
+    # `run_pipeline` may return either `(video_path, form_url)` or just `video_path`
+    # depending on whether the Form step ran. Accept both shapes.
     if isinstance(raw_result, tuple):
         video_path = raw_result[0] if len(raw_result) > 0 else None
         form_url = raw_result[1] if len(raw_result) > 1 else None
@@ -89,22 +95,4 @@ async def run_legacy_full_pipeline(question_arg: str) -> PipelineRunResult:
         summary="Legacy full pipeline did not produce a valid video.",
         video_local_path=None,
         form_url=form_url,
-    )
-
-
-async def run_mock_pipeline(question_label: str) -> PipelineRunResult:
-    """
-    Lightweight deterministic fallback used in FE-only backend iteration.
-    """
-    await asyncio.sleep(1.0)
-    tail = "".join(ch for ch in question_label if ch.isalnum())[-2:] or "00"
-    is_fail = int.from_bytes(tail.encode("utf-8"), "little") % 3 == 0
-    if is_fail:
-        return PipelineRunResult(
-            verdict="FAIL",
-            summary="Mock validation flagged inconsistencies in the generated animation.",
-        )
-    return PipelineRunResult(
-        verdict="PASS",
-        summary="Mock generation completed and is ready for review.",
     )

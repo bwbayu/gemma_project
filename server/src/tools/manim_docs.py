@@ -1,3 +1,9 @@
+"""Manim class/method introspection tools for the Coder agent.
+
+Classes are eagerly walked at import time and cached in `MANIM_CLASSES` so
+agent lookups stay O(1) — we pay the walk cost once instead of on every call.
+"""
+
 import pkgutil, importlib, inspect, sys
 
 def _collect_manim_classes() -> dict[str, type]:
@@ -45,10 +51,12 @@ Manim Function Tools
 """
 
 def _ok(data: dict) -> dict:
+    """Wrap data in a standard success response envelope."""
     return {"status": "success", "data": data, "error": None}
 
 
 def _err(message: str, data: dict | None = None) -> dict:
+    """Wrap a message in a standard error response envelope."""
     return {"status": "error", "data": data or {}, "error": message}
 
 

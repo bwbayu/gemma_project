@@ -1,3 +1,12 @@
+/**
+ * Teacher dashboard page.
+ *
+ * Owns the full workflow in a single component: pick / create a workspace,
+ * submit a question (text or image), poll the resulting generation job until
+ * it is terminal, surface the review payload, and let the teacher approve,
+ * regenerate, or discard.
+ */
+
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -5,6 +14,7 @@ import { Badge } from '../components/ui/Badge'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
+import { Select } from '../components/ui/Select'
 import { ApiError } from '../features/api/http'
 import { getJob, isTerminalJob } from '../features/api/jobs'
 import {
@@ -20,15 +30,19 @@ import {
 } from '../features/api/review'
 import type { FormLinks } from '../features/api/review'
 import {
+  activateWorkspace,
   createWorkspace as createWorkspaceApi,
   getActiveWorkspace,
+  listWorkspaces,
 } from '../features/api/workspace'
-import type { GenerationJob, JobStage, QuestionItem, ReviewResult, Workspace } from '../features/mock/types'
+import type { GenerationJob, JobStage, QuestionItem, ReviewResult, Workspace } from '../features/types/types'
 
+/** Format an ISO timestamp into a locale-aware date/time string. */
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleString()
 }
 
+/** Map a question status to the corresponding Badge tone. */
 function getStatusTone(status: QuestionItem['status']): 'neutral' | 'success' | 'warning' {
   if (status === 'added') {
     return 'success'
@@ -39,12 +53,14 @@ function getStatusTone(status: QuestionItem['status']): 'neutral' | 'success' | 
   return 'neutral'
 }
 
+/** Convert a snake_case job stage identifier to a title-cased display label. */
 function getStageLabel(stage: JobStage): string {
   return stage
     .replaceAll('_', ' ')
     .replace(/\b\w/g, (char) => char.toUpperCase())
 }
 
+/** Return a human-readable description of the question source (text excerpt or image filename). */
 function getReviewSourceText(reviewResult: ReviewResult): string {
   if (reviewResult.source.inputType === 'text') {
     return reviewResult.source.text ?? ''
@@ -57,6 +73,7 @@ function getReviewSourceText(reviewResult: ReviewResult): string {
   return 'Uploaded image source'
 }
 
+/** Resolve a promise after the given number of milliseconds, used for polling delays. */
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => {
     window.setTimeout(resolve, ms)
@@ -65,9 +82,11 @@ function wait(ms: number): Promise<void> {
 
 const POLL_INTERVAL_MS = 2000
 
+/** Main teacher dashboard: workspace setup, question intake, job progress, and review/decision flow. */
 export function DashboardPage() {
   const navigate = useNavigate()
   const [workspace, setWorkspace] = useState<Workspace | null>(null)
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [questionItems, setQuestionItems] = useState<QuestionItem[]>([])
   const [activeJob, setActiveJob] = useState<GenerationJob | null>(null)
   const [reviewResult, setReviewResult] = useState<ReviewResult | null>(null)
@@ -90,23 +109,26 @@ export function DashboardPage() {
   const [loadingCreate, setLoadingCreate] = useState(false)
 
   const pollTokenRef = useRef(0)
+  const reviewCardRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
+    // `mounted` guards against setState after unmount: the workspace list and
+    // active workspace load in parallel and the second await can resolve after
+    // the component is already gone (e.g. fast navigation).
     let mounted = true
 
+    /** Load the active workspace and its questions on mount, setting load error on failure. */
     async function hydrateWorkspace() {
       try {
-        const found = await getActiveWorkspace()
+        const [found, list] = await Promise.all([getActiveWorkspace(), listWorkspaces()])
         if (!mounted) {
           return
         }
-        setWorkspace(found)
+        setWorkspaces(list)
         if (found) {
-          const questions = await listWorkspaceQuestions(found.workspaceId)
-          if (mounted) {
-            setQuestionItems(questions)
-          }
+          await loadWorkspaceContext(found, () => mounted)
         } else {
+          setWorkspace(null)
           setQuestionItems([])
         }
       } catch (error) {
@@ -133,12 +155,75 @@ export function DashboardPage() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!reviewResult) {
+      return
+    }
+    // Wait one animation frame so the review card has actually rendered before
+    // we ask it to scroll into view — scrolling synchronously with the state
+    // change targets the old layout.
+    const handle = requestAnimationFrame(() => {
+      reviewCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    })
+    return () => cancelAnimationFrame(handle)
+  }, [reviewResult])
+
+  /** Re-fetch the question list for a workspace and update local state. */
   async function refreshQuestions(targetWorkspaceId: string): Promise<void> {
     const list = await listWorkspaceQuestions(targetWorkspaceId)
     setQuestionItems(list)
   }
 
+  /** Set the given workspace as the current context, load its questions, and resume any in-flight job. */
+  async function loadWorkspaceContext(
+    target: Workspace,
+    isMounted: () => boolean = () => true,
+  ): Promise<void> {
+    setWorkspace(target)
+    const questions = await listWorkspaceQuestions(target.workspaceId)
+    if (!isMounted()) {
+      return
+    }
+    setQuestionItems(questions)
+    const inFlight = questions.find(
+      (question) => question.status === 'generating' && question.lastJobId,
+    )
+    if (inFlight?.lastJobId) {
+      void trackJob(inFlight.lastJobId, target.workspaceId)
+    }
+  }
+
+  /** Switch the active workspace, clearing transient UI state and reloading the new workspace's context. */
+  async function handleSwitchWorkspace(workspaceId: string): Promise<void> {
+    if (!workspaceId || workspaceId === workspace?.workspaceId) {
+      return
+    }
+    pollTokenRef.current = 0
+    setActiveJob(null)
+    setReviewResult(null)
+    setApprovedFormLinks(null)
+    setSubmitError('')
+    setSubmitSuccess('')
+    setCopyMessage('')
+    try {
+      const activated = await activateWorkspace(workspaceId)
+      await loadWorkspaceContext(activated)
+      const list = await listWorkspaces()
+      setWorkspaces(list)
+    } catch (error) {
+      if (error instanceof ApiError) {
+        setLoadError(error.message)
+      } else {
+        setLoadError('Could not switch workspace.')
+      }
+    }
+  }
+
+  /** Poll the job endpoint until it reaches a terminal state, then refresh the question list. */
   async function trackJob(jobId: string, workspaceId: string): Promise<void> {
+    // `pollTokenRef` is bumped on workspace switch (and on unmount). An older
+    // in-flight poll notices its token no longer matches and stops — preventing
+    // results for the previous workspace from overwriting the new one's state.
     const token = Date.now()
     pollTokenRef.current = token
 
@@ -151,8 +236,11 @@ export function DashboardPage() {
         if (latest.status === 'failed' || latest.stage === 'failed') {
           setSubmitError(latest.message || 'Generation failed.')
         } else {
-          setSubmitSuccess('Generation completed. Open review to inspect result.')
-          window.location.reload()
+          setSubmitSuccess('Generation completed. Opening review...')
+          const targetId = latest.questionItemId
+          if (targetId) {
+            await handleOpenReview(targetId)
+          }
         }
         return
       }
@@ -161,6 +249,7 @@ export function DashboardPage() {
     }
   }
 
+  /** Handle the create-workspace form submission, validating inputs before calling the API. */
   async function handleCreateWorkspace(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setCreateError('')
@@ -183,6 +272,7 @@ export function DashboardPage() {
     try {
       const workspace = await createWorkspaceApi(title, description)
       setWorkspace(workspace)
+      setWorkspaces((prev) => [workspace, ...prev.filter((w) => w.workspaceId !== workspace.workspaceId)])
       await refreshQuestions(workspace.workspaceId)
       setCreateTitle('')
       setCreateDescription('')
@@ -198,6 +288,7 @@ export function DashboardPage() {
     }
   }
 
+  /** Submit an image or text question and start tracking the resulting generation job. */
   async function handleStartGeneration(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!workspace) {
@@ -248,6 +339,7 @@ export function DashboardPage() {
     }
   }
 
+  /** Load the review result for a specific question and display it in the review panel. */
   async function handleOpenReview(questionItemId: string): Promise<void> {
     setSubmitError('')
     setCopyMessage('')
@@ -257,6 +349,8 @@ export function DashboardPage() {
       setReviewResult(review)
       setSubmitSuccess('Review payload loaded.')
     } catch (error) {
+      // The backend signals "still rendering" with this code; surface it as a
+      // polling message instead of a generic error so the teacher knows to wait.
       if (error instanceof ApiError && error.code === 'REVIEW_NOT_READY') {
         setSubmitSuccess('Review is still generating. Please check again shortly.')
       } else if (error instanceof ApiError) {
@@ -267,6 +361,7 @@ export function DashboardPage() {
     }
   }
 
+  /** Approve the current review result, appending the animation to the Google Form. */
   async function handleApprove(): Promise<void> {
     if (!reviewResult || !workspace) {
       return
@@ -296,6 +391,7 @@ export function DashboardPage() {
     }
   }
 
+  /** Trigger a new generation job for the current question and begin tracking it. */
   async function handleRegenerate(): Promise<void> {
     if (!reviewResult || !workspace) {
       return
@@ -327,6 +423,7 @@ export function DashboardPage() {
     }
   }
 
+  /** Discard the current review result and remove the question from the active list. */
   async function handleDiscard(): Promise<void> {
     if (!reviewResult || !workspace) {
       return
@@ -352,6 +449,7 @@ export function DashboardPage() {
     }
   }
 
+  /** Copy the form responder URL to the clipboard, preferring the latest approved link. */
   async function handleCopyResponderLink(): Promise<void> {
     const responderUrl = approvedFormLinks?.formResponderUrl || workspace?.formRef.formResponderUrl
     if (!responderUrl) {
@@ -366,6 +464,7 @@ export function DashboardPage() {
     }
   }
 
+  /** Open the Google Form editor in a new tab, preferring the latest approved link. */
   function openFormLink(): void {
     const editUrl = approvedFormLinks?.formEditUrl || workspace?.formRef.formEditUrl
     if (!editUrl) {
@@ -377,6 +476,7 @@ export function DashboardPage() {
   const editFormUrl = approvedFormLinks?.formEditUrl || workspace?.formRef.formEditUrl || ''
   const responderFormUrl =
     approvedFormLinks?.formResponderUrl || workspace?.formRef.formResponderUrl || ''
+  const hasGeneratingQuestion = questionItems.some((item) => item.status === 'generating')
 
   return (
     <section className="space-y-5">
@@ -444,26 +544,39 @@ export function DashboardPage() {
         </form>
       </Card>
 
-      <Card className="flex items-center justify-between">
-        <div>
+      <Card className="flex items-center justify-between gap-4">
+        <div className="flex-1 space-y-2">
           {loading ? (
             <>
-              <p className="font-medium text-ink">Loading workspace...</p>
+              <p className="font-medium text-ink">Loading workspaces...</p>
               <p className="text-sm text-slate">Checking backend active workspace.</p>
             </>
-          ) : workspace ? (
+          ) : workspaces.length === 0 ? (
             <>
-              <p className="font-medium text-ink">{workspace.formRef.formTitle}</p>
-              <p className="text-sm text-slate">{workspace.formRef.formDescription}</p>
-              <p className="mt-1 text-xs text-slate">Form ID: {workspace.formRef.formId}</p>
-            </>
-          ) : (
-            <>
-              <p className="font-medium text-ink">No Active Workspace</p>
+              <p className="font-medium text-ink">No Workspaces Yet</p>
               <p className="text-sm text-slate">
                 Create a new workspace from the panel above before submitting questions.
               </p>
             </>
+          ) : (
+            <div className="space-y-1">
+              <p className="text-sm text-slate">Active workspace</p>
+              <Select
+                ariaLabel="Active workspace"
+                onValueChange={(value) => void handleSwitchWorkspace(value)}
+                options={workspaces.map((w) => ({
+                  value: w.workspaceId,
+                  label: w.formRef.formTitle,
+                }))}
+                placeholder="Select a workspace"
+                value={workspace?.workspaceId}
+              />
+              {workspace ? (
+                <p className="text-xs text-slate">
+                  {workspace.formRef.formDescription} — Form ID: {workspace.formRef.formId}
+                </p>
+              ) : null}
+            </div>
           )}
         </div>
         <Badge tone={workspace ? 'success' : 'warning'}>
@@ -495,12 +608,16 @@ export function DashboardPage() {
                     <Badge tone={getStatusTone(item.status)}>{item.status}</Badge>
                   </div>
                   <div className="mt-2">
-                    <Button
-                      onClick={() => void handleOpenReview(item.questionItemId)}
-                      variant="ghost"
-                    >
-                      Open Review
-                    </Button>
+                    {item.status !== 'generating' ? (
+                      <Button
+                        onClick={() => void handleOpenReview(item.questionItemId)}
+                        variant="ghost"
+                      >
+                        Open Review
+                      </Button>
+                    ) : (
+                      <span className="text-xs text-slate">Generating animation...</span>
+                    )}
                   </div>
                 </li>
               ))}
@@ -567,8 +684,16 @@ export function DashboardPage() {
 
             {submitError ? <p className="text-sm text-[#b44f2a]">{submitError}</p> : null}
 
-            <Button disabled={submitting || !workspace} type="submit" variant="secondary">
-              {submitting ? 'Submitting...' : 'Start Generation'}
+            <Button
+              disabled={submitting || !workspace || hasGeneratingQuestion}
+              type="submit"
+              variant="secondary"
+            >
+              {submitting
+                ? 'Submitting...'
+                : hasGeneratingQuestion
+                  ? 'Generating...'
+                  : 'Start Generation'}
             </Button>
           </form>
         </Card>
@@ -591,13 +716,14 @@ export function DashboardPage() {
       ) : null}
 
       {reviewResult ? (
-        <Card className="space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="font-medium text-ink">Review Result</p>
-            <Badge tone={reviewResult.validation.verdict === 'PASS' ? 'success' : 'warning'}>
-              {reviewResult.validation.verdict}
-            </Badge>
-          </div>
+        <div ref={reviewCardRef}>
+          <Card className="space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="font-medium text-ink">Review Result</p>
+              <Badge tone={reviewResult.validation.verdict === 'PASS' ? 'success' : 'warning'}>
+                {reviewResult.validation.verdict}
+              </Badge>
+            </div>
 
           <div className="grid gap-3 lg:grid-cols-2">
             <Card className="space-y-2 p-3 shadow-none">
@@ -697,7 +823,8 @@ export function DashboardPage() {
             <p className="text-sm text-[#b44f2a]">Append error: {reviewResult.append.errorMessage}</p>
           ) : null}
           {copyMessage ? <p className="text-sm text-accent">{copyMessage}</p> : null}
-        </Card>
+          </Card>
+        </div>
       ) : null}
     </section>
   )

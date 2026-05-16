@@ -1,3 +1,5 @@
+"""Parses a physics question into the Physics IR JSON schema (used by the experimental IR-based path)."""
+
 from google.adk.agents import LlmAgent
 from google.genai import types
 from google.adk.models import Gemini
