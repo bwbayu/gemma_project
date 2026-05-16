@@ -16,8 +16,6 @@ PhysicsAnimator deploys in two pieces: the FastAPI backend runs as a container o
 8. [Step 6 — Create Secret Manager secrets](#step-6--create-secret-manager-secrets)
 9. [Step 7 — Deploy the Cloud Run service](#step-7--deploy-the-cloud-run-service)
 10. [Step 8 — Deploy the frontend to Firebase Hosting](#step-8--deploy-the-frontend-to-firebase-hosting)
-11. [Post-deploy verification](#post-deploy-verification)
-12. [Troubleshooting](#troubleshooting)
 
 ---
 

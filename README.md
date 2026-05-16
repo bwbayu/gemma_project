@@ -31,6 +31,12 @@ PhysicsAnimator reframes each question as a short video animation of the physica
 
 ![Generation Pipeline](assets/flowchart-pipeline.jpg)
 
+## Multi-Agent Architecture
+
+The generation pipeline runs as a `SequentialAgent` composed of two Google ADK `LlmAgent`s — **PhysicsManimAgent** (writes and renders ManimCE code, `thinking: high`) and **ValidatorAgent** (reviews the rendered video against 5 criteria including the anti-cheat constraint, `thinking: default`). On `VERDICT == FAIL` the validator's feedback is written back into session state and PhysicsManimAgent retries; on `VERDICT == PASS` the job transitions to `awaiting_review` where the teacher takes over.
+
+![Multi-Agent Architecture](assets/multiagent%20architecture.jpg)
+
 ---
 
 ## Screenshots / Demo
@@ -53,7 +59,7 @@ PhysicsAnimator reframes each question as a short video animation of the physica
 
 - **Frontend:** React 19, React Router 7, TypeScript 6, Vite 8, Tailwind CSS 3, Radix UI, Lucide icons.
 - **Backend:** Python 3.11+, FastAPI, Pydantic v2, Uvicorn.
-- **AI / Generation:** Google Gemini 2.0 Flash (via `google-genai`), Google ADK (Agent Development Kit), Manim CE 0.19.
+- **AI / Generation:** Google Gemma-4-31b-it (via `google-genai`), Google ADK (Agent Development Kit), Manim CE 0.19.
 - **Cloud / Storage:** Firestore, Google Cloud Storage, Google Forms API, Google Drive API, Cloud Run.
 - **Tooling:** Docker, Firebase Hosting, ffmpeg.
 
