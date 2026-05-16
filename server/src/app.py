@@ -18,11 +18,12 @@ from src.agents.rate_limit import enable_rate_limit_retry_logging, get_fixed_429
 from src.utils import _build_user_message, _print_separator, _IMAGE_EXTENSIONS, _log_event, _log_event_no_content, _parse_verdict
 
 from dotenv import load_dotenv
-from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from authlib.deprecate import AuthlibDeprecationWarning
 import asyncio, warnings, argparse
 
+from google.adk.runners import Runner, RunConfig
+from google.adk.agents.run_config import StreamingMode
 # ignore warning
 warnings.filterwarnings("ignore", category=AuthlibDeprecationWarning)
 warnings.filterwarnings(
@@ -79,7 +80,6 @@ async def _run_pipeline_loop(
                 "original_question_text": original_question_text,
                 "validator_feedback": previous_feedback,
                 "verified_manim_code": "",
-                "vlm_validation_result": "(not yet assessed — call vlm_validate_video first)",
             },
         )
 
@@ -98,6 +98,7 @@ async def _run_pipeline_loop(
             user_id=user_id,
             session_id=attempt_session_id,
             new_message=current_message,
+            run_config=RunConfig(streaming_mode=StreamingMode.SSE),
         ):
             event_count += 1
             if not event.content or not event.content.parts:
@@ -232,7 +233,6 @@ async def _run_generation_pipeline_loop(
                 "original_question_text": original_question_text,
                 "validator_feedback": previous_feedback,
                 "verified_manim_code": "",
-                "vlm_validation_result": "(not yet assessed — call vlm_validate_video first)",
             },
         )
 
@@ -240,6 +240,7 @@ async def _run_generation_pipeline_loop(
             user_id=user_id,
             session_id=attempt_session_id,
             new_message=initial_message,
+            run_config=RunConfig(streaming_mode=StreamingMode.SSE),
         ):
             if not event.content or not event.content.parts:
                 continue
