@@ -1,6 +1,6 @@
-# PhysicsAnimator — Server
+# VisiQ — Server
 
-The PhysicsAnimator server is a FastAPI backend that orchestrates a multi-agent pipeline (PhysicsParser → PhysicsManim → Validator → Form) to convert physics questions into Manim-rendered animations. It persists workspaces, questions, and generation jobs in Firestore, stores rendered media in Google Cloud Storage, and appends approved questions to teacher-owned Google Forms.
+The VisiQ server is a FastAPI backend that orchestrates a multi-agent pipeline (PhysicsParser → PhysicsManim → Validator → Form) to convert physics questions into Manim-rendered animations. It persists workspaces, questions, and generation jobs in Firestore, stores rendered media in Google Cloud Storage, and appends approved questions to teacher-owned Google Forms.
 
 For the project pitch, problem statement, and global setup, see the [root README](../README.md).
 

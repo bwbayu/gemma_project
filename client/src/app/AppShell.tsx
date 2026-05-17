@@ -16,7 +16,7 @@ export function AppShell() {
         <div className="flex w-full items-center justify-between gap-3 px-4 py-3 sm:px-5 lg:px-6">
           <div>
             <p className="font-display text-lg font-semibold tracking-tight sm:text-xl">
-              PhysicsAnimator Client
+              VisiQ Client
             </p>
             <p className="text-xs text-slate sm:text-sm">Animated Question Builder for Physics Teachers</p>
           </div>

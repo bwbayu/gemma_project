@@ -1,8 +1,8 @@
-# PhysicsAnimator
+# VisiQ
 
 > Turning physics questions into observable animations — built for the Gemma Hackathon 2026.
 
-PhysicsAnimator is a teacher-facing tool that converts text or image-based physics questions into short Manim animations. Teachers create a workspace (backed by a Google Form), upload questions, review the generated animations, and approve the good ones — approved questions are appended automatically to the workspace's Google Form so students answer them by observing the animation rather than by reading raw text or image input.
+VisiQ is a teacher-facing tool that converts text or image-based physics questions into short Manim animations. Teachers create a workspace (backed by a Google Form), upload questions, review the generated animations, and approve the good ones — approved questions are appended automatically to the workspace's Google Form so students answer them by observing the animation rather than by reading raw text or image input.
 
 ---
 
@@ -14,7 +14,7 @@ The cost is hidden but compounding: students stop practising the foundational ha
 
 ## Our Solution
 
-PhysicsAnimator reframes each question as a short video animation of the physical scenario:
+VisiQ reframes each question as a short video animation of the physical scenario:
 
 - The student watches the animation and has to identify the geometry, the given values, the forces, and what the question is actually asking.
 - This mirrors how real physics works — observe the phenomenon first, then build the model.

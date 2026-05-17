@@ -1,6 +1,6 @@
-# PhysicsAnimator — Client
+# VisiQ — Client
 
-The PhysicsAnimator client is a React + TypeScript + Vite single-page app used by teachers to manage Google Form-backed question workspaces, submit physics questions (text or image), watch generation progress in real time, and approve, regenerate, or discard the generated animations. It talks to the FastAPI backend over REST and polls for job status while a question is being generated.
+The VisiQ client is a React + TypeScript + Vite single-page app used by teachers to manage Google Form-backed question workspaces, submit physics questions (text or image), watch generation progress in real time, and approve, regenerate, or discard the generated animations. It talks to the FastAPI backend over REST and polls for job status while a question is being generated.
 
 For the project pitch, problem statement, and global setup, see the [root README](../README.md).
 

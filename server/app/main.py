@@ -30,7 +30,7 @@ def create_app() -> FastAPI:
         if origin.strip()
     ]
     app = FastAPI(
-        title="PhysicsAnimator Backend API",
+        title="VisiQ Backend API",
         version="0.1.0",
     )
 
