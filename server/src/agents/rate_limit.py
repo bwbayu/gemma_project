@@ -64,8 +64,3 @@ def enable_rate_limit_retry_logging(level: int = logging.INFO) -> None:
     handler.setLevel(level)
     handler.setFormatter(logging.Formatter("  [GENAI RETRY] %(message)s"))
     logger.addHandler(handler)
-
-
-def get_fixed_429_sleep_seconds() -> int:
-    """Fixed orchestration fallback sleep in whole seconds."""
-    return max(1, int(RATE_LIMIT_SLEEP_SECONDS))

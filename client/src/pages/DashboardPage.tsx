@@ -126,7 +126,44 @@ export function DashboardPage() {
         }
         setWorkspaces(list)
         if (found) {
-          await loadWorkspaceContext(found, () => mounted)
+          setWorkspace(found)
+          const questions = await listWorkspaceQuestions(found.workspaceId)
+          if (!mounted) {
+            return
+          }
+          setQuestionItems(questions)
+          const inFlight = questions.find(
+            (question) => question.status === 'generating' && question.lastJobId,
+          )
+          if (inFlight?.lastJobId) {
+            const jobId = inFlight.lastJobId
+            const workspaceId = found.workspaceId
+            void (async () => {
+              const token = pollTokenRef.current + 1
+              pollTokenRef.current = token
+              while (pollTokenRef.current === token && mounted) {
+                const latest = await getJob(jobId)
+                if (!mounted || pollTokenRef.current !== token) {
+                  return
+                }
+                setActiveJob(latest)
+                if (isTerminalJob(latest)) {
+                  const list = await listWorkspaceQuestions(workspaceId)
+                  if (!mounted) {
+                    return
+                  }
+                  setQuestionItems(list)
+                  if (latest.status === 'failed' || latest.stage === 'failed') {
+                    setSubmitError(latest.message || 'Generation failed.')
+                  } else {
+                    setSubmitSuccess('Generation completed.')
+                  }
+                  return
+                }
+                await wait(POLL_INTERVAL_MS)
+              }
+            })()
+          }
         } else {
           setWorkspace(null)
           setQuestionItems([])
@@ -224,7 +261,7 @@ export function DashboardPage() {
     // `pollTokenRef` is bumped on workspace switch (and on unmount). An older
     // in-flight poll notices its token no longer matches and stops — preventing
     // results for the previous workspace from overwriting the new one's state.
-    const token = Date.now()
+    const token = pollTokenRef.current + 1
     pollTokenRef.current = token
 
     while (pollTokenRef.current === token) {
@@ -485,7 +522,7 @@ export function DashboardPage() {
           Dashboard
         </h1>
         <p className="text-sm text-slate">
-          Backend-integrated workspace, intake, progress tracking, review, and decision flow.
+          Generate, review, and publish physics animations to your Google Form.
         </p>
       </header>
 

@@ -18,7 +18,7 @@ export function AppShell() {
             <p className="font-display text-lg font-semibold tracking-tight sm:text-xl">
               PhysicsAnimator Client
             </p>
-            <p className="text-xs text-slate sm:text-sm">Teacher Authoring Dashboard</p>
+            <p className="text-xs text-slate sm:text-sm">Animated Question Builder for Physics Teachers</p>
           </div>
         </div>
       </header>

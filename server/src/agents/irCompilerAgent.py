@@ -1,9 +1,4 @@
-"""Experimental Physics-IR → Manim compiler agent.
-
-NOTE: not wired into `pipeline.py`. The live pipeline uses `physicsManimAgent.py`,
-which goes straight from the question text/image to Manim code. This file is kept
-for reference in case the IR-driven path is revived.
-"""
+"""Experimental Physics-IR → Manim compiler agent."""
 
 from google.adk.agents import LlmAgent
 from google.genai import types

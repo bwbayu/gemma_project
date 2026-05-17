@@ -1,8 +1,8 @@
 """CLI + programmatic entrypoint for the ADK pipeline.
 
-Runs `pipeline` (Coder→Validator→Form) or `generation_pipeline` (Coder→Validator)
-with retry-on-FAIL: each retry injects the validator's feedback into the next
-attempt so the Coder can address the specific issue.
+Runs `generation_pipeline` (Coder→Validator) with retry-on-FAIL: each retry
+injects the validator's feedback into the next attempt so the Coder can
+address the specific issue.
 """
 
 import sys, os
@@ -13,8 +13,8 @@ if hasattr(sys.stdout, "reconfigure"):
 if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
-from src.agents.pipeline import pipeline, generation_pipeline
-from src.agents.rate_limit import enable_rate_limit_retry_logging, get_fixed_429_sleep_seconds
+from src.agents.pipeline import generation_pipeline
+from src.agents.rate_limit import enable_rate_limit_retry_logging
 from src.utils import _build_user_message, _print_separator, _IMAGE_EXTENSIONS, _log_event, _log_event_no_content, _parse_verdict
 
 from dotenv import load_dotenv
@@ -35,156 +35,6 @@ warnings.filterwarnings(
 
 load_dotenv()
 enable_rate_limit_retry_logging()
-
-async def _run_pipeline_loop(
-    question_arg: str,
-    max_retries: int,
-    app_name: str,
-    user_id: str,
-    session_id: str,
-) -> str:
-    """
-    Inner pipeline loop
-    """
-    session_service = InMemorySessionService()
-    runner = Runner(
-        agent=pipeline,
-        app_name=app_name,
-        session_service=session_service,
-    )
-
-    initial_message = _build_user_message(question_arg)
-    last_video_path = ""
-    previous_feedback = ""
-    feedback = ""
-
-    original_question_text = _resolve_original_question_text(question_arg)
-
-    _MAX_RL_RETRIES = 5   # max 429 pauses per validation attempt
-    attempt = 0
-    rl_retry = 0          # incremented on each 429; keeps session IDs unique
-
-    while attempt < max_retries:
-        attempt += 1
-        _print_separator(f"Attempt {attempt}/{max_retries}")
-
-        # `rl_retry` is folded into the session id so a 429-driven retry of the
-        # same attempt gets a fresh ADK session — reusing the previous id would
-        # replay stale state and confuse the runner.
-        attempt_session_id = f"{session_id}_attempt_{attempt}_rl{rl_retry}"
-        await session_service.create_session(
-            app_name=app_name,
-            user_id=user_id,
-            session_id=attempt_session_id,
-            state={
-                "original_question_text": original_question_text,
-                "validator_feedback": previous_feedback,
-                "verified_manim_code": "",
-            },
-        )
-
-        current_message = initial_message
-
-        # Run the sequential pipeline
-        agents_seen = set()
-        event_count = 0
-        _rate_limited = False
-        # Orchestration-level 429 retry is intentionally disabled here because
-        # `rate_limit.py` already handles 429 backoff at the SDK layer via
-        # http_options on every GenerateContentConfig. Kept commented for the
-        # case where SDK-level retry proves insufficient.
-        # try:
-        async for event in runner.run_async(
-            user_id=user_id,
-            session_id=attempt_session_id,
-            new_message=current_message,
-            run_config=RunConfig(streaming_mode=StreamingMode.SSE),
-        ):
-            event_count += 1
-            if not event.content or not event.content.parts:
-                _log_event_no_content(event, agents_seen)
-                continue
-            _log_event(event, agents_seen)
-        # except Exception as exc:
-        #     exc_str = str(exc)
-        #     print(f"\n  [DEBUG] Pipeline runner raised exception: {type(exc).__name__}: {exc_str[:300]}")
-        #     if ("RESOURCE_EXHAUSTED" in exc_str or "429" in exc_str) and rl_retry < _MAX_RL_RETRIES:
-        #         wait_secs = get_fixed_429_sleep_seconds()
-        #         print(f"\n  [RATE LIMIT] Waiting {wait_secs}s before retrying attempt {attempt}...")
-        #         await asyncio.sleep(wait_secs)
-        #         attempt -= 1  # don't consume this attempt slot
-        #         rl_retry += 1 # new suffix so next session ID is unique
-        #         _rate_limited = True
-
-        if _rate_limited:
-            continue  # restart while loop with same attempt number
-
-        print(f"\n  [DEBUG] Event loop finished. Total events: {event_count}, agents seen: {agents_seen}")
-
-        # Read state after pipeline run
-        session = await session_service.get_session(
-            app_name=app_name,
-            user_id=user_id,
-            session_id=attempt_session_id,
-        )
-        state = session.state
-
-        video_path = state.get("video_path", "")
-        if video_path and os.path.exists(video_path):
-            last_video_path = video_path
-
-        validation_raw = state.get("validation_result", "")
-        verdict, feedback, suggested_fixes = _parse_verdict(validation_raw)
-
-        form_result_raw = state.get("form_result", "")
-        form_url = ""
-        if form_result_raw:
-            try:
-                import json, re as _re
-                clean = _re.sub(r"```[a-z]*\n?", "", form_result_raw).strip(" `\n")
-                form_data = json.loads(clean)
-                form_url = form_data.get("form_url", "")
-            except Exception:
-                pass
-
-        _print_separator()
-        print(f"  Validator verdict : {verdict}")
-        if feedback:
-            print(f"  Feedback          : {feedback[:200]}")
-        if video_path:
-            print(f"  Video path        : {video_path}")
-        if form_url:                                    
-            print(f"  Form URL          : {form_url}")
-
-        # Flow decision based on validator output
-        if verdict == "PASS":
-            return video_path, form_url
-        
-        if attempt < max_retries:
-            fix_lines = "\n".join(f"  - {f}" for f in suggested_fixes) if suggested_fixes else "  (none specified)"
-            raw_feedback = (
-                f"VALIDATION FAILED on attempt {attempt}/{max_retries}.\n\n"
-                f"Feedback:\n{feedback}\n\n"
-                f"Suggested fixes:\n{fix_lines}\n\n"
-                "Please rewrite the animation from scratch and address all issues above."
-            )
-            # Cap the feedback we inject into the next attempt so prompt tokens
-            # do not grow unboundedly across retries.
-            _MAX_FEEDBACK = 2000
-            previous_feedback = (
-                raw_feedback[:_MAX_FEEDBACK] + "..." if len(raw_feedback) > _MAX_FEEDBACK else raw_feedback
-            )
-            print(f"\n  Retrying with validator feedback...")
-        else:
-            print(f"\n  Max retries ({max_retries}) reached.")
-
-    if feedback:
-        print(f"  Last validator feedback: {feedback[:500]}")
-    if last_video_path:
-        print(f"  Last rendered (failed validation): {last_video_path}")
-
-    return ""
-
 
 def _resolve_original_question_text(question_arg: str) -> str:
     if os.path.isfile(question_arg):
@@ -279,35 +129,6 @@ async def _run_generation_pipeline_loop(
         return last_video_path, "FAIL", feedback
     return "", "FAIL", feedback or "Generation did not produce a valid output."
 
-async def run_pipeline(
-    question_arg: str,
-    max_retries: int = 3,
-    timeout: int = 1200,
-) -> str:
-    """
-    Run the Concept → Coder → Validator pipeline with external retry on FAIL.
-
-    Returns the path to the generated video (may be empty string on total failure).
-    """
-    app_name = "physics_animator"
-    user_id = "user"
-    session_id = "session_main"
-
-    try:
-        return await asyncio.wait_for(
-            _run_pipeline_loop(
-                question_arg=question_arg,
-                max_retries=max_retries,
-                app_name=app_name,
-                user_id=user_id,
-                session_id=session_id,
-            ),
-            timeout=timeout,
-        )
-    except asyncio.TimeoutError:
-        print(f"\n  ERROR: Pipeline timed out after {timeout} seconds.")
-        return ""
-
 
 async def run_generation_pipeline(
     question_arg: str,
@@ -399,7 +220,7 @@ Examples:
     print(f"Max retries: {args.max_retries}")
 
     try:
-        video_path = asyncio.run(run_pipeline(args.question, args.max_retries, args.timeout))
+        video_path = asyncio.run(run_generation_pipeline(args.question, args.max_retries, args.timeout))
     except ValueError as e:
         print(f"ERROR: {e}")
         sys.exit(1)
