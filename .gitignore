@@ -1,1 +1,6 @@
-env/ 
+.venv
+./agents/
+./github/
+*.md
+!README.md
+!DEPLOYMENT.md

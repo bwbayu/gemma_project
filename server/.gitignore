@@ -1,0 +1,19 @@
+env/ 
+.env
+*.md
+.claude
+*__pycache__
+/output
+# /assets
+/agents
+/learning
+/mcp_servers
+/schemas
+/tools
+/.venv
+credentials.json
+rate_limit*.log
+token.json
+asas-demo*.json
+palette.png
+!README.md
