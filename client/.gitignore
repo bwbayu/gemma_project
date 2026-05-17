@@ -34,3 +34,4 @@ dist-ssr
 # Claude Code
 skills-lock.json
 !README.md
+.vite
