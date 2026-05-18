@@ -149,6 +149,4 @@ The backend ships as a multi-stage Docker image and runs on Google Cloud Run; th
 - [DEPLOYMENT.md](DEPLOYMENT.md) — deployment guide.
 ---
 
-## License
-
-Released under the MIT License. Built for the Gemma Hackathon 2026.
+Built for the Gemma Hackathon 2026.
