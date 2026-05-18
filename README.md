@@ -1,6 +1,6 @@
 # VisiQ
 
-> Turning physics questions into observable animations — built for the Gemma Hackathon 2026.
+> From static questions to animated problems — designed to make students reason, not retrieve.
 
 VisiQ is a teacher-facing tool that converts text or image-based physics questions into short Manim animations. Teachers create a workspace (backed by a Google Form), upload questions, review the generated animations, and approve the good ones — approved questions are appended automatically to the workspace's Google Form so students answer them by observing the animation rather than by reading raw text or image input.
 
@@ -8,18 +8,28 @@ VisiQ is a teacher-facing tool that converts text or image-based physics questio
 
 ## The Problem
 
-In the LLM era, most physics problems set as plain text or as a question-paper image have effectively become open-book. A student can paste the image or the text into any chat model and receive a worked solution in seconds. The model does the *observing* and the *modelling* for them, which are precisely the skills physics education is supposed to develop.
+In the era of LLMs, standard physics homework and unproctored exams have effectively lost their security. A student can paste a question — text or photo — into any chat model and receive a worked solution in seconds. The model does the *observing* and the *modelling* for them, which are precisely the skills physics education is supposed to develop.
 
-The cost is hidden but compounding: students stop practising the foundational habit of looking at a situation, picking out the relevant objects and variables, and translating them into a model. By the time they reach problems that need it, the skill is not there.
+This isn't hypothetical. In the 2025 HEPI/Kortext Student Generative AI Survey, **88% of full-time undergraduates** reported using generative AI for assessments, and the share submitting AI-generated content **"without editing"** more than doubled in a single year (3% → 8%). In a 2025 AAC&U / Elon University faculty survey, **90% of faculty** said GenAI will diminish students' critical-thinking skills and **78%** reported that cheating has increased on their campuses since these tools became available.
+
+The cost is hidden but compounding: students stop practising the foundational habit of looking at a situation, picking out the relevant objects and variables, and translating them into a model. Current assessment frameworks are no longer protecting that skill.
 
 ## Our Solution
 
-VisiQ reframes each question as a short video animation of the physical scenario:
+VisiQ reframes each question as a short video animation of the physical scenario. By moving the problem off the page, we eliminate the ability to copy-paste or upload it into an LLM:
 
 - The student watches the animation and has to identify the geometry, the given values, the forces, and what the question is actually asking.
 - This mirrors how real physics works — observe the phenomenon first, then build the model.
-- A multi-agent validator (Gemini VLM) enforces an **anti-cheat constraint**: the final numerical answer must never appear in the animation. Students see the setup, not the solution.
+- A multi-agent validator powered by **Gemma** enforces an **anti-cheat constraint**: the final numerical answer must never appear in the animation. Students see the setup, not the solution.
 - The pipeline focuses on physics first, but the same approach generalises to any subject where observation matters more than the wording of a prompt.
+
+---
+
+## Demo
+
+A short walkthrough of VisiQ — uploading a physics question, the multi-agent pipeline generating the animation, and the teacher approving it into a Google Form.
+
+[▶ Watch the demo on YouTube](https://youtu.be/VIDEO_ID)
 
 ---
 
