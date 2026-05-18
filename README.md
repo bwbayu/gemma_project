@@ -29,7 +29,7 @@ VisiQ reframes each question as a short video animation of the physical scenario
 
 A short walkthrough of VisiQ — uploading a physics question, the multi-agent pipeline generating the animation, and the teacher approving it into a Google Form.
 
-[▶ Watch the demo on YouTube](https://youtu.be/VIDEO_ID)
+[▶ Watch the demo on YouTube](https://www.youtube.com/watch?v=NttG2ueTyEU)
 
 ---
 
